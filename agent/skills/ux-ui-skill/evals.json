@@ -1,0 +1,238 @@
+[
+  {
+    "name": "Create User Personas from Research",
+    "prompt": "I conducted 10 user interviews for our fitness app. Key findings: 7 users are busy professionals (30-45) who want quick workouts, 3 are fitness enthusiasts (25-35) who track detailed metrics. All mentioned struggling with motivation. Create 2 personas based on this.",
+    "expectations": [
+      "Creates 2 distinct personas with names and roles",
+      "Includes demographics (age, occupation, tech savviness)",
+      "Defines clear goals for each persona",
+      "Lists pain points and frustrations",
+      "Describes behaviors and habits",
+      "Includes memorable quotes",
+      "Differentiates between the two personas",
+      "Bases personas on actual research data mentioned",
+      "Makes personas feel realistic and actionable"
+    ]
+  },
+  {
+    "name": "Design User Flow for Checkout",
+    "prompt": "I need a user flow for an e-commerce checkout process. Users can checkout as guest or create account, need to add shipping address and payment, and should see order confirmation. Include error states.",
+    "expectations": [
+      "Uses proper flow diagram notation (rectangles, diamonds, ovals)",
+      "Shows decision points (guest vs. login, payment method)",
+      "Includes happy path from cart to confirmation",
+      "Maps error scenarios (invalid card, out of stock)",
+      "Shows system responses and feedback",
+      "Includes all mentioned steps (shipping, payment, confirmation)",
+      "Clear start and end points",
+      "Logical progression and branching",
+      "Considers edge cases"
+    ]
+  },
+  {
+    "name": "Create Information Architecture for Blog",
+    "prompt": "I'm building a tech blog with 200+ articles across categories: Web Dev, Mobile, DevOps, Design, AI/ML. Also have About, Contact, Newsletter signup. Design the information architecture and navigation.",
+    "expectations": [
+      "Creates logical sitemap structure",
+      "Groups content by categories mentioned",
+      "Defines primary navigation (likely: Articles, Categories, About, Contact)",
+      "Suggests secondary navigation or filtering",
+      "Includes search functionality",
+      "Considers breadcrumbs for deep content",
+      "Limits navigation depth to 3 levels",
+      "Uses clear, descriptive labels",
+      "Addresses newsletter subscription placement",
+      "Discusses tag-based organization as alternative/addition"
+    ]
+  },
+  {
+    "name": "Wireframe Mobile App Dashboard",
+    "prompt": "Create a low-fidelity wireframe for a fitness app dashboard. Users need to see: today's activity summary, quick start workout button, upcoming scheduled workouts, and progress chart. Mobile-first design.",
+    "expectations": [
+      "Creates mobile layout (portrait orientation)",
+      "Shows component placement and hierarchy",
+      "Prioritizes most important info at top (activity summary)",
+      "Makes CTA (start workout) prominent",
+      "Uses placeholders instead of real content",
+      "Includes annotations for interactions",
+      "Considers thumb-friendly zones",
+      "Shows relative sizing and spacing",
+      "Keeps it low-fidelity (no colors/detailed styling)",
+      "Addresses all required elements"
+    ]
+  },
+  {
+    "name": "Design System Color Palette",
+    "prompt": "Create a color palette for a financial services app. Brand color is blue (#1E40AF). Need primary, secondary, neutral, and semantic colors. Ensure accessibility compliance.",
+    "expectations": [
+      "Uses provided blue as primary color",
+      "Creates shades and tints of primary",
+      "Defines neutral gray scale (6-8 shades)",
+      "Sets semantic colors (success, error, warning, info)",
+      "Mentions contrast ratios and WCAG compliance",
+      "Tests color combinations for accessibility",
+      "Provides hex codes for all colors",
+      "Follows 60-30-10 rule or similar guidance",
+      "Considers color blindness",
+      "Appropriate for serious/trustworthy brand (financial services)"
+    ]
+  },
+  {
+    "name": "Typography System Design",
+    "prompt": "Design a typography system for a content-heavy website. Need hierarchy from headings to body text. Consider readability and web performance.",
+    "expectations": [
+      "Defines type scale (H1-H6, body, small)",
+      "Specifies font sizes (px or rem)",
+      "Sets line heights (1.5-1.6 for body)",
+      "Recommends 1-2 font families",
+      "Considers web fonts vs system fonts for performance",
+      "Sets appropriate line length (50-75 characters)",
+      "Defines font weights for hierarchy",
+      "Addresses responsive sizing",
+      "Ensures minimum 4.5:1 contrast for readability",
+      "Discusses mobile considerations"
+    ]
+  },
+  {
+    "name": "Plan Usability Test for New Feature",
+    "prompt": "We built a new calendar scheduling feature and want to test it with users. Help me plan a usability test session including recruitment, tasks, and what to measure.",
+    "expectations": [
+      "Defines test goals and what to learn",
+      "Recommends number of participants (5-8)",
+      "Suggests recruitment criteria (target users)",
+      "Creates 3-5 realistic task scenarios",
+      "Avoids using UI labels in task descriptions",
+      "Outlines session structure with timing",
+      "Defines success metrics (completion rate, time on task)",
+      "Suggests thinking aloud protocol",
+      "Recommends recording method",
+      "Includes pre and post-test questions"
+    ]
+  },
+  {
+    "name": "Accessibility Audit Findings",
+    "prompt": "Review this design: white text on light blue background (#E3F2FD), buttons are 32x32px, no focus indicators, form inputs without labels, images without alt text. What accessibility issues exist?",
+    "expectations": [
+      "Identifies contrast issue (white on light blue fails WCAG)",
+      "Flags small touch target size (should be 44x44pt minimum)",
+      "Notes missing focus indicators for keyboard navigation",
+      "Points out form inputs need visible labels",
+      "Mentions missing alt text for images",
+      "References WCAG guidelines",
+      "Explains impact on users with disabilities",
+      "Provides specific fixes for each issue",
+      "Prioritizes issues by severity"
+    ]
+  },
+  {
+    "name": "Create Journey Map for Online Shopping",
+    "prompt": "Map the user journey for someone shopping for a laptop online, from initial research through post-purchase. Include emotional states and pain points.",
+    "expectations": [
+      "Defines journey phases (awareness, research, comparison, purchase, delivery, use)",
+      "Lists user actions in each phase",
+      "Maps touchpoints (search, review sites, checkout, email, delivery)",
+      "Shows emotional curve with highs and lows",
+      "Identifies pain points (comparison overwhelm, slow shipping anxiety)",
+      "Includes user thoughts and feelings",
+      "Highlights moments of truth or critical decision points",
+      "Suggests opportunities for improvement",
+      "Covers entire journey from research to post-purchase"
+    ]
+  },
+  {
+    "name": "Design System Component Documentation",
+    "prompt": "Create documentation for a Button component with Primary, Secondary, and Tertiary variants. Include specs for developers.",
+    "expectations": [
+      "Describes component purpose and when to use",
+      "Lists all variants (Primary, Secondary, Tertiary)",
+      "Documents all states (default, hover, active, focus, disabled)",
+      "Specifies dimensions and touch target size",
+      "Includes spacing and padding values",
+      "Defines typography (font, size, weight)",
+      "Lists colors for each variant and state",
+      "Shows visual examples or mockups",
+      "Includes accessibility notes (focus indicators, labels)",
+      "Provides code examples or design tokens"
+    ]
+  },
+  {
+    "name": "Critique Dashboard Design",
+    "prompt": "I designed a dashboard with 8 different chart types, 12 colors, 4 font families, and every space filled with data. Provide constructive design critique.",
+    "expectations": [
+      "Identifies visual clutter and cognitive overload",
+      "Suggests reducing number of chart types",
+      "Recommends limiting color palette",
+      "Advises using 1-2 font families max",
+      "Emphasizes importance of whitespace",
+      "Discusses visual hierarchy and focus",
+      "Suggests progressive disclosure for complex data",
+      "Recommends testing with users",
+      "Provides constructive alternatives",
+      "Balances positive and negative feedback"
+    ]
+  },
+  {
+    "name": "Design Responsive Navigation",
+    "prompt": "Design navigation for a website with 8 main sections. Should work on desktop (1440px), tablet (768px), and mobile (375px). Consider accessibility.",
+    "expectations": [
+      "Shows desktop horizontal navigation with all items visible",
+      "Recommends collapsing to hamburger menu on mobile",
+      "Suggests tablet treatment (partial collapse or dropdown)",
+      "Ensures touch targets are 44x44pt minimum on mobile",
+      "Includes keyboard navigation support",
+      "Shows focus indicators",
+      "Considers breakpoint transitions",
+      "Discusses sticky vs. static navigation",
+      "Mentions skip to main content link",
+      "Addresses ARIA labels for mobile menu"
+    ]
+  },
+  {
+    "name": "Design Error State Messaging",
+    "prompt": "Users are trying to upload profile photos but getting errors. Design error messages for: file too large (limit 5MB), wrong file type (need JPG/PNG), and upload failed (network error).",
+    "expectations": [
+      "Creates clear, specific error messages for each scenario",
+      "Uses plain language, avoids technical jargon",
+      "Explains what went wrong",
+      "Provides actionable solution for each error",
+      "Uses appropriate tone (helpful, not blaming)",
+      "Suggests inline validation to prevent errors",
+      "Shows file size limit before upload",
+      "Includes visual indicators (icons, colors)",
+      "Considers placement of error messages",
+      "Offers retry option for network errors"
+    ]
+  },
+  {
+    "name": "Design Onboarding Flow",
+    "prompt": "Create an onboarding flow for a task management app. Users need to create account, set preferences, create first project, and invite team member. Keep it under 5 steps.",
+    "expectations": [
+      "Limits to 5 steps or fewer",
+      "Shows progress indicator",
+      "Starts with value proposition or benefit",
+      "Orders steps logically",
+      "Allows skipping optional steps",
+      "Includes clear CTAs",
+      "Provides option to skip entire onboarding",
+      "Minimizes required fields",
+      "Shows success state at end",
+      "Considers mobile experience"
+    ]
+  },
+  {
+    "name": "Design Data Table with Filters",
+    "prompt": "Design a data table showing 500+ user records with columns: name, email, role, status, joined date. Users need to sort, filter, and search. Consider mobile view.",
+    "expectations": [
+      "Shows clear column headers with sort indicators",
+      "Includes search bar",
+      "Provides filter options (dropdowns or checkboxes)",
+      "Implements pagination or infinite scroll",
+      "Shows selected filters with ability to clear",
+      "Addresses mobile view (card layout or simplified table)",
+      "Includes loading states",
+      "Shows empty state when no results",
+      "Considers bulk actions (select multiple)",
+      "Provides export option"
+    ]
+  }
+]

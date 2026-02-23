@@ -1,0 +1,242 @@
+[
+  {
+    "name": "Design High-Traffic E-commerce System",
+    "prompt": "Design the architecture for an e-commerce platform expecting 1 million daily active users, 10,000 concurrent users at peak, with product catalog of 100K items. Must support search, recommendations, cart, checkout, inventory management, and order tracking. Consider scalability, availability, and performance.",
+    "expectations": [
+      "Identifies major components (frontend, API gateway, services, databases)",
+      "Chooses appropriate architectural pattern (likely microservices)",
+      "Addresses scalability (load balancing, horizontal scaling, caching)",
+      "Designs data layer (separate DBs for catalog, orders, users)",
+      "Implements caching strategy (Redis for sessions, CDN for static content)",
+      "Plans for high availability (multi-region, redundancy)",
+      "Considers async processing (order processing, email notifications)",
+      "Includes search infrastructure (Elasticsearch)",
+      "Addresses performance optimization",
+      "Provides capacity planning and resource estimates"
+    ]
+  },
+  {
+    "name": "Monolith to Microservices Migration Strategy",
+    "prompt": "We have a 5-year-old monolithic application with 500K lines of code, 20 developers, deployed once a month. It's becoming difficult to maintain and scale. Design a migration strategy to microservices. Consider risks and provide a phased approach.",
+    "expectations": [
+      "Recommends strangler pattern for gradual migration",
+      "Identifies service boundaries by business capabilities",
+      "Suggests starting with least coupled components",
+      "Proposes phased migration plan",
+      "Addresses data decomposition strategy",
+      "Discusses API gateway for routing",
+      "Mentions using anti-corruption layer",
+      "Identifies risks (data consistency, team coordination, complexity)",
+      "Recommends not rushing (modular monolith first)",
+      "Suggests infrastructure automation requirements"
+    ]
+  },
+  {
+    "name": "Design Event-Driven Order Processing",
+    "prompt": "Design an order processing system using event-driven architecture. When order is placed, need to: validate payment, check inventory, send confirmation email, update analytics, trigger fulfillment. Must handle failures gracefully and ensure no order is lost.",
+    "expectations": [
+      "Chooses event streaming platform (Kafka, EventBridge, RabbitMQ)",
+      "Designs event flow from order creation through processing",
+      "Implements saga pattern for distributed transaction",
+      "Addresses idempotency (duplicate events)",
+      "Includes dead letter queue for failed events",
+      "Implements retry logic with exponential backoff",
+      "Ensures event ordering where necessary",
+      "Addresses eventual consistency",
+      "Monitors event processing (lag, failures)",
+      "Provides failure recovery mechanisms"
+    ]
+  },
+  {
+    "name": "Database Sharding Strategy",
+    "prompt": "Our PostgreSQL database has 500GB of data and is reaching performance limits. We have 10 million users and growing 20% monthly. Design a sharding strategy that maintains data locality for user queries and allows for future growth.",
+    "expectations": [
+      "Chooses sharding strategy (user-based sharding recommended)",
+      "Defines shard key (likely user_id or tenant_id)",
+      "Addresses cross-shard queries",
+      "Plans for rebalancing shards",
+      "Implements routing layer (shard proxy)",
+      "Discusses read replicas per shard",
+      "Addresses backup and recovery per shard",
+      "Plans for adding new shards",
+      "Considers consistent hashing for even distribution",
+      "Discusses migration strategy from single DB"
+    ]
+  },
+  {
+    "name": "Multi-Region Architecture Design",
+    "prompt": "Design a globally distributed system serving users in North America, Europe, and Asia with 99.99% availability SLA. Need to minimize latency for all regions while ensuring data consistency for critical operations. Budget allows for infrastructure in 3-4 regions.",
+    "expectations": [
+      "Proposes multi-region deployment in key locations",
+      "Uses CDN for static content and API caching",
+      "Implements database replication across regions",
+      "Chooses consistency model (strong for critical data, eventual for others)",
+      "Uses global load balancer with geo-routing",
+      "Addresses data sovereignty and compliance",
+      "Plans for regional failover",
+      "Implements health checks and automatic failover",
+      "Discusses data synchronization and conflict resolution",
+      "Calculates cost vs. performance trade-offs"
+    ]
+  },
+  {
+    "name": "Security Architecture for Healthcare System",
+    "prompt": "Design security architecture for a healthcare system storing patient medical records (HIPAA compliance required). Must support doctors, patients, and administrators with different access levels. Include authentication, authorization, data protection, and audit logging.",
+    "expectations": [
+      "Implements multi-factor authentication",
+      "Uses role-based access control (RBAC) with fine-grained permissions",
+      "Encrypts data at rest and in transit (TLS 1.3, AES-256)",
+      "Implements audit logging for all data access",
+      "Uses token-based authentication (JWT or OAuth)",
+      "Addresses HIPAA compliance requirements",
+      "Implements data masking for sensitive fields",
+      "Uses secure key management service",
+      "Implements network segmentation and firewalls",
+      "Includes threat modeling and security monitoring"
+    ]
+  },
+  {
+    "name": "Caching Strategy for API Performance",
+    "prompt": "Our API response times are slow (500ms average). 80% of requests are for the same product catalog data that changes hourly. 15% for user-specific data. 5% for real-time inventory. Design a comprehensive caching strategy.",
+    "expectations": [
+      "Implements multi-layer caching (browser, CDN, application, database)",
+      "Uses Redis for application-level cache",
+      "Sets appropriate TTL for different data types",
+      "Caches product catalog with 1-hour TTL",
+      "Uses cache-aside pattern for catalog data",
+      "Implements cache warming for popular products",
+      "Doesn't cache real-time inventory or user-specific data",
+      "Uses HTTP cache headers (Cache-Control, ETag)",
+      "Implements cache invalidation strategy",
+      "Monitors cache hit ratio and adjusts"
+    ]
+  },
+  {
+    "name": "Design API Gateway Architecture",
+    "prompt": "Design an API gateway for a microservices architecture with 15 backend services. Gateway needs to handle authentication, rate limiting, request routing, transformation, and monitoring. Expected load: 50,000 requests/minute.",
+    "expectations": [
+      "Chooses API gateway solution or designs custom",
+      "Implements authentication at gateway level",
+      "Adds rate limiting per user/API key",
+      "Routes requests to appropriate services",
+      "Implements circuit breaker for failing services",
+      "Aggregates responses from multiple services if needed",
+      "Adds request/response logging",
+      "Implements request validation",
+      "Uses connection pooling to backend services",
+      "Plans for gateway scalability and HA"
+    ]
+  },
+  {
+    "name": "Design Disaster Recovery Strategy",
+    "prompt": "Design a disaster recovery strategy for a critical financial application with RTO (Recovery Time Objective) of 1 hour and RPO (Recovery Point Objective) of 15 minutes. System runs on AWS in us-east-1. Budget allows for DR in one additional region.",
+    "expectations": [
+      "Chooses warm standby or hot standby (given RTO/RPO)",
+      "Sets up secondary region (us-west-2 or similar)",
+      "Implements database replication with 15-minute lag max",
+      "Creates automated backup every 15 minutes",
+      "Uses infrastructure as code for quick recreation",
+      "Implements automated failover procedures",
+      "Plans for data synchronization and consistency",
+      "Tests DR procedures regularly",
+      "Documents runbooks for DR scenarios",
+      "Monitors replication lag and backup success"
+    ]
+  },
+  {
+    "name": "Write ADR for Database Choice",
+    "prompt": "Write an Architecture Decision Record (ADR) documenting the choice between PostgreSQL and MongoDB for a new social media application with user profiles, posts, comments, and activity feeds.",
+    "expectations": [
+      "Uses proper ADR format (Status, Context, Decision, Consequences)",
+      "Explains requirements driving the decision",
+      "Discusses both PostgreSQL and MongoDB options",
+      "Evaluates trade-offs (relational model, transactions, scalability)",
+      "Makes clear recommendation with reasoning",
+      "Discusses positive and negative consequences",
+      "Considers team expertise and operational complexity",
+      "Addresses specific use cases (complex queries vs flexible schema)",
+      "Documents decision rationale for future reference",
+      "Includes date and decision status"
+    ]
+  },
+  {
+    "name": "Design Serverless Architecture",
+    "prompt": "Design a serverless architecture for a file processing system. Users upload files (images, videos, documents), system needs to: validate file, scan for viruses, transform/compress, extract metadata, and store in database. Cost-effective for variable load (100 files/day to 10,000 files/day).",
+    "expectations": [
+      "Uses serverless functions (Lambda, Cloud Functions)",
+      "Triggers processing on file upload event",
+      "Chains multiple functions for processing pipeline",
+      "Uses managed services (S3, DynamoDB, etc.)",
+      "Implements error handling and retry logic",
+      "Uses step functions or workflow orchestration",
+      "Addresses cold start implications",
+      "Implements timeout handling",
+      "Uses appropriate function memory and timeout settings",
+      "Discusses cost optimization (function duration, memory)"
+    ]
+  },
+  {
+    "name": "Design Message Queue Architecture",
+    "prompt": "Design a message queue architecture for a notification system sending emails, SMS, and push notifications. Must handle 1 million notifications/day with spikes during campaigns. Need guaranteed delivery, no duplicates, and priority queue support.",
+    "expectations": [
+      "Chooses message queue system (RabbitMQ, SQS, Kafka)",
+      "Implements separate queues for email, SMS, push",
+      "Adds priority queue support (high, normal, low)",
+      "Uses dead letter queue for failed messages",
+      "Implements exactly-once delivery semantics",
+      "Uses idempotency keys to prevent duplicates",
+      "Scales workers based on queue depth",
+      "Implements retry logic with exponential backoff",
+      "Monitors queue metrics (depth, age, processing time)",
+      "Provides alerting for queue backup"
+    ]
+  },
+  {
+    "name": "Performance Optimization Analysis",
+    "prompt": "An API endpoint takes 2 seconds to respond. Investigation shows: database query takes 1.5s (retrieving 10K records), JSON serialization takes 300ms, network transfer takes 200ms. Endpoint is called 1000 times/minute. Optimize for sub-200ms response.",
+    "expectations": [
+      "Identifies database query as main bottleneck",
+      "Adds database indexes on query fields",
+      "Implements pagination (don't return 10K records)",
+      "Adds caching layer for frequently accessed data",
+      "Uses database query optimization (explain plan)",
+      "Implements lazy loading or cursor-based pagination",
+      "Optimizes JSON serialization (lighter payload)",
+      "Uses compression for response",
+      "Considers CDN for cacheable responses",
+      "Measures improvements after each optimization"
+    ]
+  },
+  {
+    "name": "Design OAuth 2.0 Implementation",
+    "prompt": "Design an OAuth 2.0 implementation for a platform that needs to: let users authorize third-party apps, support multiple grant types, issue short-lived access tokens and long-lived refresh tokens, and handle token revocation.",
+    "expectations": [
+      "Implements standard OAuth 2.0 flows (authorization code, client credentials)",
+      "Designs authorization server with token endpoint",
+      "Issues JWT access tokens with 15-30 minute expiration",
+      "Issues refresh tokens with longer expiration",
+      "Implements token revocation endpoint",
+      "Stores refresh tokens securely",
+      "Validates token signatures and expiration",
+      "Implements scope-based authorization",
+      "Adds rate limiting on token endpoint",
+      "Provides developer dashboard for app registration"
+    ]
+  },
+  {
+    "name": "Design Real-Time Analytics System",
+    "prompt": "Design a real-time analytics system for tracking user behavior on a website. Need to process 100K events/second, provide dashboards with <5 second latency, and support ad-hoc queries on historical data. Data retention: 90 days hot, 2 years cold storage.",
+    "expectations": [
+      "Uses event streaming platform (Kafka, Kinesis)",
+      "Implements stream processing (Flink, Spark Streaming)",
+      "Uses time-series database or analytics DB (ClickHouse, Druid)",
+      "Implements hot/cold storage tiering",
+      "Provides real-time dashboards via WebSockets",
+      "Aggregates data for efficiency (pre-aggregation)",
+      "Implements data retention and archival",
+      "Uses columnar storage for cold data",
+      "Addresses late-arriving events",
+      "Provides query layer with caching"
+    ]
+  }
+]

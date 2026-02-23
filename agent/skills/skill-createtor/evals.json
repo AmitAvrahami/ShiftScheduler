@@ -1,0 +1,215 @@
+[
+  {
+    "name": "Create New Skill from Task Description",
+    "prompt": "I frequently help users analyze Excel spreadsheets - calculating totals, creating pivot tables, and generating charts. Create a Skill for this so Claude knows how to handle spreadsheet analysis tasks.",
+    "expectations": [
+      "Creates proper YAML frontmatter with name and description",
+      "Uses gerund form for name (e.g., 'analyzing-spreadsheets')",
+      "Description is specific and includes trigger keywords (Excel, spreadsheets, charts)",
+      "Description written in third person",
+      "SKILL.md contains concrete examples with code",
+      "Assumes Claude knows basics (no over-explanation)",
+      "Provides workflows for complex analysis",
+      "Keeps content under 500 lines or splits into reference files",
+      "Includes at least 3 evaluation scenarios"
+    ]
+  },
+  {
+    "name": "Improve Verbose Skill Description",
+    "prompt": "Review this Skill description: 'This is a skill that helps you when you want to work with PDF files and need to do things like extracting text or maybe filling forms and stuff like that.' Make it better following best practices.",
+    "expectations": [
+      "Rewrites in third person (not 'you' or 'I')",
+      "Makes description specific and concise",
+      "Includes trigger keywords (PDF, extract, forms, documents)",
+      "Specifies both what it does AND when to use it",
+      "Removes vague language ('stuff like that')",
+      "Keeps under 1024 characters",
+      "Uses clear, direct language",
+      "Examples: 'Extracts text and tables from PDF files, fills forms. Use when working with PDFs or when user mentions document extraction.'"
+    ]
+  },
+  {
+    "name": "Add Progressive Disclosure to Long Skill",
+    "prompt": "I have a Skill with 800 lines in SKILL.md covering: basic queries, advanced joins, performance optimization, and debugging. Reorganize it using progressive disclosure patterns.",
+    "expectations": [
+      "Keeps SKILL.md under 500 lines with high-level overview",
+      "Splits content into separate files (ADVANCED.md, PERFORMANCE.md, DEBUGGING.md)",
+      "Uses proper linking in SKILL.md to reference files",
+      "Keeps references one level deep (no nested references)",
+      "Provides table of contents in longer reference files",
+      "Makes file names descriptive",
+      "Explains when to read each reference file",
+      "Maintains Unix-style paths (forward slashes)"
+    ]
+  },
+  {
+    "name": "Create Evaluation Test Cases",
+    "prompt": "Create 3 evaluation test cases for a git-commit-helper skill that analyzes diffs and generates commit messages.",
+    "expectations": [
+      "Creates proper JSON evaluation format",
+      "Each evaluation has: query, expected_behavior array",
+      "Query is realistic and specific",
+      "Expected behaviors are concrete and verifiable",
+      "Covers different scenarios (feature, bugfix, refactor)",
+      "Expected behaviors focus on outputs, not internal process",
+      "At least 3 distinct test cases",
+      "Can be used to measure skill effectiveness"
+    ]
+  },
+  {
+    "name": "Add Workflow with Validation Loop",
+    "prompt": "I have a Skill for editing XML in Word documents, but users often create invalid XML. Add a workflow with proper validation feedback loops.",
+    "expectations": [
+      "Creates numbered workflow steps",
+      "Includes validation step after editing",
+      "Implements feedback loop (validate → fix → validate again)",
+      "Uses 'ONLY proceed when validation passes' language",
+      "Provides checklist format for tracking progress",
+      "Makes validation mandatory, not optional",
+      "Shows clear error handling",
+      "References validation script or tool",
+      "Explains what to do when validation fails"
+    ]
+  },
+  {
+    "name": "Refactor Inconsistent Terminology",
+    "prompt": "This Skill uses 'endpoint', 'URL', 'API route', and 'path' interchangeably. Also mixes 'retrieve', 'fetch', 'get', and 'pull' for the same operation. Fix the terminology.",
+    "expectations": [
+      "Identifies all inconsistent terms",
+      "Chooses one term for each concept",
+      "Consistently replaces throughout Skill",
+      "Explains the choice in response",
+      "Documents chosen terminology",
+      "Examples: Always 'API endpoint', always 'retrieve'",
+      "Maintains consistency in examples and descriptions"
+    ]
+  },
+  {
+    "name": "Write Utility Script with Error Handling",
+    "prompt": "Create a utility script for the Skill that validates JSON configuration files. It should handle missing files, invalid JSON, and missing required fields gracefully.",
+    "expectations": [
+      "Creates Python script with proper error handling",
+      "Uses try-except blocks appropriately",
+      "Handles FileNotFoundError explicitly",
+      "Handles JSONDecodeError with helpful message",
+      "Validates required fields",
+      "Provides clear, specific error messages",
+      "Doesn't punt errors to Claude",
+      "Returns meaningful exit codes",
+      "Documents what the script does",
+      "No 'magic constants' - all values justified"
+    ]
+  },
+  {
+    "name": "Fix Time-Sensitive Information",
+    "prompt": "This Skill says: 'If using before March 2025, use the v1 API. After March 2025, use v2 API.' Rewrite to avoid time-sensitive information.",
+    "expectations": [
+      "Removes date-based conditionals",
+      "Uses 'Current method' section for v2 API",
+      "Uses 'Old patterns' or collapsible section for v1",
+      "Marks v1 as deprecated with deprecation date",
+      "Makes current method primary/prominent",
+      "Keeps historical context available but not prominent",
+      "Explains why to use v2 over v1",
+      "Future-proof structure"
+    ]
+  },
+  {
+    "name": "Set Appropriate Degrees of Freedom",
+    "prompt": "I have three tasks in my Skill: (1) database migration (critical, must follow exact steps), (2) data analysis (varies by context), (3) code review (multiple valid approaches). Set appropriate degrees of freedom for each.",
+    "expectations": [
+      "Database migration: Low freedom - exact script, no modifications",
+      "Data analysis: Medium freedom - template with parameters",
+      "Code review: High freedom - general guidelines and heuristics",
+      "Explains reasoning for each choice",
+      "Uses analogy of 'narrow bridge' vs 'open field'",
+      "Provides specific instructions for low-freedom tasks",
+      "Provides general guidance for high-freedom tasks",
+      "Matches specificity to fragility"
+    ]
+  },
+  {
+    "name": "Organize Domain-Specific Content",
+    "prompt": "My BigQuery Skill covers finance metrics, sales data, product analytics, and marketing campaigns. Currently everything is in one 600-line file. Organize it better.",
+    "expectations": [
+      "Creates domain-specific organization (finance.md, sales.md, etc.)",
+      "Keeps SKILL.md as navigation overview",
+      "Links to each domain-specific file",
+      "Explains when to use each domain file",
+      "Provides quick search examples (grep commands)",
+      "One level deep reference structure",
+      "Descriptive file names by domain",
+      "Reduces irrelevant context loading"
+    ]
+  },
+  {
+    "name": "Write Template Pattern",
+    "prompt": "Create a template for API response format that must be followed strictly - it's for a production API that clients depend on.",
+    "expectations": [
+      "Uses strong language: 'ALWAYS use this exact template'",
+      "Provides complete template structure",
+      "Shows all required fields",
+      "Specifies data types and formats",
+      "Uses code block formatting",
+      "Explains this is for strict requirements",
+      "No flexibility language like 'adapt as needed'",
+      "Examples show exact format"
+    ]
+  },
+  {
+    "name": "Add Examples Pattern",
+    "prompt": "My Skill generates commit messages but quality is inconsistent. Add examples to improve output quality.",
+    "expectations": [
+      "Provides 3+ input/output pairs",
+      "Examples cover different scenarios (feat, fix, chore)",
+      "Shows both input and complete output",
+      "Examples demonstrate desired style and detail level",
+      "Uses proper formatting (code blocks)",
+      "Explains the pattern after examples",
+      "Examples are realistic and diverse",
+      "Clear structure: 'Example 1:', 'Input:', 'Output:'"
+    ]
+  },
+  {
+    "name": "Convert Nested References to One Level",
+    "prompt": "My Skill has this structure: SKILL.md → advanced.md → details.md → examples.md. Flatten it to one level deep.",
+    "expectations": [
+      "Restructures so all files link directly from SKILL.md",
+      "SKILL.md → advanced.md (direct)",
+      "SKILL.md → details.md (direct)",
+      "SKILL.md → examples.md (direct)",
+      "No chaining of references",
+      "Updates all links in SKILL.md",
+      "Explains why one level is better",
+      "Ensures complete file reads"
+    ]
+  },
+  {
+    "name": "Add Table of Contents to Long Reference",
+    "prompt": "My API_REFERENCE.md file is 250 lines. Add a proper table of contents at the top.",
+    "expectations": [
+      "Creates table of contents at very top of file",
+      "Lists all major sections",
+      "Shows hierarchical structure",
+      "Enables Claude to see full scope",
+      "Useful for partial file reads (head command)",
+      "Links to sections if possible",
+      "Clear section organization",
+      "Helps navigation"
+    ]
+  },
+  {
+    "name": "Write Conditional Workflow",
+    "prompt": "My Skill handles both creating new documents and editing existing ones. Add conditional workflow to guide Claude through the decision.",
+    "expectations": [
+      "Creates decision point at start of workflow",
+      "Separates 'Creating new' vs 'Editing existing' paths",
+      "Provides clear criteria for each path",
+      "Each path has distinct steps",
+      "Uses clear formatting and structure",
+      "Makes decision explicit",
+      "References appropriate tools for each path",
+      "Explains when to use which workflow"
+    ]
+  }
+]
