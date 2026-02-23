@@ -1,6 +1,6 @@
 import { collection, query, where, onSnapshot, writeBatch, doc } from 'firebase/firestore';
-import { db } from '../firebase/config';
-import type { Shift, Employee, Role } from '../types';
+import { db } from '../../../lib/firebase/config';
+import type { Shift, Employee, Role } from '../../../types';
 import { startOfWeek, addDays, setHours, setMinutes } from 'date-fns';
 
 export const subscribeToEmployees = (callback: (employees: Employee[]) => void) => {

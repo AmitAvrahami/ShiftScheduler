@@ -1,6 +1,9 @@
 import React from 'react';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
-import { type Shift, type Employee, type Role } from '../../types';
+import { Clock, MapPin, UserSquare } from 'lucide-react';
+import clsx from 'clsx';
+import { twMerge } from 'tailwind-merge';
+import type { Employee, Role, Shift } from '../../../types';
 
 interface WeeklyCalendarProps {
     currentDate: Date;
