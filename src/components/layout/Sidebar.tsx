@@ -17,7 +17,7 @@ const navItems = [
 
 export function Sidebar() {
     return (
-        <aside className="fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200 flex flex-col">
+        <aside className="w-64 bg-white border-r border-gray-200 flex flex-col flex-shrink-0 relative z-20">
             <div className="h-16 flex items-center px-6 border-b border-gray-200">
                 <h1 className="text-xl font-euclid text-primary font-bold">ShiftAgent</h1>
             </div>
