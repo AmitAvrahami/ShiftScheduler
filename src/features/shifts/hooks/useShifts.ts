@@ -44,5 +44,16 @@ export function useShifts(currentDate: Date) {
         }
     }, []);
 
-    return { shifts, employees, roles, loading, error, addShift };
+    const updateShift = useCallback(async (id: string, data: Partial<Shift>) => {
+        try {
+            const { doc, updateDoc } = await import('firebase/firestore');
+            const shiftRef = doc(db, 'shifts', id);
+            await updateDoc(shiftRef, data);
+        } catch (err) {
+            console.error('Error updating shift:', err);
+            throw err;
+        }
+    }, []);
+
+    return { shifts, employees, roles, loading, error, addShift, updateShift };
 }

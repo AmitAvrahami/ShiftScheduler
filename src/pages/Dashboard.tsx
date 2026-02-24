@@ -4,12 +4,44 @@ import { WeeklyCalendar } from '../features/shifts/components/WeeklyCalendar';
 import { useShifts } from '../features/shifts/hooks/useShifts';
 import { ShiftModal } from '../features/shifts/components/ShiftModal';
 import { seedMockData } from '../features/shifts/services/firestoreService';
+import { useScheduler } from '../features/shifts/hooks/useScheduler';
+import toast from 'react-hot-toast';
 import { Calendar as CalendarIcon, Users, Loader2, Plus, Database } from 'lucide-react';
 
 export function Dashboard() {
     const [currentDate] = useState(new Date());
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const { shifts, employees, roles, loading, error, addShift } = useShifts(currentDate);
+    const { shifts, employees, roles, loading, error, addShift, updateShift } = useShifts(currentDate);
+    const { generateSchedule, isGenerating } = useScheduler();
+
+    const handleGenerateDraft = async () => {
+        try {
+            const evaluation = await generateSchedule(employees, shifts);
+            const hardViolationsCount = evaluation.constraintViolations.filter((v: any) => v.type === 'hard').length;
+
+            toast.success(`Schedule generated! ${hardViolationsCount} hard violations. Penalty score: ${Math.round(evaluation.penaltyScore)}`, { duration: 5000 });
+
+            // Apply assignments to database
+            const promises: Promise<void>[] = [];
+            evaluation.schedule.forEach((assignedEmpIds: string[], shiftId: string) => {
+                const shift = shifts.find(s => s.id === shiftId);
+                // Currently only supporting 1 employee per shift
+                if (shift && assignedEmpIds.length > 0 && shift.employee_id !== assignedEmpIds[0]) {
+                    promises.push(updateShift(shiftId, { employee_id: assignedEmpIds[0], status: 'scheduled' }));
+                }
+            });
+
+            if (promises.length > 0) {
+                await Promise.all(promises);
+                toast.success(`Applied ${promises.length} new shift assignments.`);
+            } else {
+                toast('No new assignments were made.', { icon: 'ℹ️' });
+            }
+        } catch (err) {
+            console.error('Failed to generate draft:', err);
+            toast.error('Failed to generate draft schedule.');
+        }
+    };
 
     if (error) {
         return (
@@ -54,6 +86,20 @@ export function Dashboard() {
                         className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-transparent rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300 transition-colors shadow-sm"
                     >
                         Seed Mock Data
+                    </button>
+                    <button
+                        onClick={handleGenerateDraft}
+                        disabled={isGenerating || shifts.length === 0 || employees.length === 0}
+                        className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-lg hover:bg-indigo-700 disabled:opacity-75 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors shadow-sm"
+                    >
+                        {isGenerating ? (
+                            <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Generating...
+                            </>
+                        ) : (
+                            'Generate Draft'
+                        )}
                     </button>
                     <button
                         onClick={() => setIsModalOpen(true)}
