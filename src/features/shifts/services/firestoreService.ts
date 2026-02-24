@@ -1,4 +1,4 @@
-import { collection, query, where, onSnapshot, writeBatch, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, writeBatch, doc, addDoc } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/config';
 import type { Shift, Employee, Role } from '../../../types';
 import { startOfWeek, addDays, setHours, setMinutes } from 'date-fns';
@@ -53,9 +53,66 @@ export const seedMockData = async () => {
 
     // Employees
     const employees: Omit<Employee, 'id'>[] = [
-        { first_name: 'Amit', last_name: 'Mac', email: 'amit@example.com', phone_number: '555-0101', total_hours_per_week: 40, created_at: new Date().toISOString() },
-        { first_name: 'Sarah', last_name: 'Connor', email: 'sarah@example.com', phone_number: '555-0102', total_hours_per_week: 30, created_at: new Date().toISOString() },
-        { first_name: 'John', last_name: 'Doe', email: 'john@example.com', phone_number: '555-0103', total_hours_per_week: 20, created_at: new Date().toISOString() },
+        {
+            first_name: 'Amit',
+            last_name: 'Mac',
+            email: 'amit@example.com',
+            phone_number: '555-0101',
+            role_ids: [roleIds[0]], // Manager
+            preferences: {
+                target_shifts_per_week: 5,
+                min_shifts_per_week: 3,
+                max_shifts_per_week: 6,
+                constraints: [
+                    {
+                        id: 'c1',
+                        day_of_week: 0, // Sunday
+                        part_of_day: 'afternoon',
+                        start_time: '14:45',
+                        end_time: '20:00',
+                        type: 'mandatory_unavailability',
+                        description: 'Basketball practice'
+                    }
+                ]
+            },
+            created_at: new Date().toISOString()
+        },
+        {
+            first_name: 'Sarah',
+            last_name: 'Connor',
+            email: 'sarah@example.com',
+            phone_number: '555-0102',
+            role_ids: [roleIds[1]], // Barista
+            preferences: {
+                target_shifts_per_week: 4,
+                min_shifts_per_week: 3,
+                max_shifts_per_week: 5,
+                constraints: []
+            },
+            created_at: new Date().toISOString()
+        },
+        {
+            first_name: 'John',
+            last_name: 'Doe',
+            email: 'john@example.com',
+            phone_number: '555-0103',
+            role_ids: [roleIds[1], roleIds[2]], // Barista & Cashier
+            preferences: {
+                target_shifts_per_week: 3,
+                min_shifts_per_week: 2,
+                max_shifts_per_week: 4,
+                constraints: [
+                    {
+                        id: 'c2',
+                        day_of_week: 2, // Tuesday
+                        part_of_day: 'morning',
+                        type: 'preferred',
+                        description: 'Likes morning shifts'
+                    }
+                ]
+            },
+            created_at: new Date().toISOString()
+        },
     ];
 
     const empIds = [];
@@ -89,5 +146,32 @@ export const seedMockData = async () => {
         });
     }
 
+    await batch.commit();
+};
+
+export const addEmployee = async (data: Omit<Employee, 'id' | 'created_at'>) => {
+    const employeeData = {
+        ...data,
+        created_at: new Date().toISOString()
+    };
+    const docRef = await addDoc(collection(db, 'employees'), employeeData);
+    return docRef.id;
+};
+
+export const updateEmployee = async (id: string, data: Partial<Omit<Employee, 'id' | 'created_at'>>) => {
+    const docRef = doc(db, 'employees', id);
+    // Use writeBatch or direct update; updateDoc wasn't imported initially, let's just use it
+    // Wait, updateDoc is from 'firebase/firestore'. The file currently doesn't import updateDoc.
+    // Instead of messing with imports in a small chunk, let's just use the current approach. 
+    // Actually, I can just append import if needed, or use a batch for single update.
+    const batch = writeBatch(db);
+    batch.update(docRef, data);
+    await batch.commit();
+};
+
+export const deleteEmployee = async (id: string) => {
+    const docRef = doc(db, 'employees', id);
+    const batch = writeBatch(db);
+    batch.delete(docRef);
     await batch.commit();
 };

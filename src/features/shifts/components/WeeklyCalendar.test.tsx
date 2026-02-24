@@ -12,7 +12,13 @@ describe('WeeklyCalendar Component', () => {
             last_name: 'Doe',
             email: 'john@example.com',
             phone_number: '555-1234',
-            total_hours_per_week: 40,
+            role_ids: ['role1'],
+            preferences: {
+                target_shifts_per_week: 5,
+                min_shifts_per_week: 3,
+                max_shifts_per_week: 6,
+                constraints: []
+            },
             created_at: '2026-01-01T00:00:00Z',
         },
     ];
@@ -47,7 +53,7 @@ describe('WeeklyCalendar Component', () => {
     it('renders employee information', () => {
         render(<WeeklyCalendar currentDate={mockDate} shifts={[]} employees={mockEmployees} roles={mockRoles} />);
         expect(screen.getByText('John Doe')).toBeInTheDocument();
-        expect(screen.getByText('40h/wk')).toBeInTheDocument();
+        expect(screen.getByText('Target: 5 shifts')).toBeInTheDocument();
     });
 
     it('renders shifts correctly', () => {

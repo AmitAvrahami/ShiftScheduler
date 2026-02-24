@@ -1,9 +1,10 @@
-import React from 'react';
 import { createBrowserRouter, RouterProvider, Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { Dashboard } from './pages/Dashboard';
+
+import { Team } from './pages/Team';
 
 function Shell() {
   return (
@@ -34,7 +35,7 @@ const router = createBrowserRouter([
       },
       {
         path: 'team',
-        element: <div className="p-4">Team Directory</div>,
+        element: <Team />,
       },
       {
         path: 'settings',

@@ -1,3 +1,22 @@
+export type PartOfDay = 'morning' | 'afternoon' | 'evening' | 'night' | 'all_day';
+
+export interface EmployeeConstraint {
+    id: string;
+    day_of_week: number; // 0 = Sunday, 1 = Monday, etc.
+    part_of_day: PartOfDay;
+    start_time?: string;
+    end_time?: string;
+    type: 'mandatory_unavailability' | 'preferred' | 'less_preferred';
+    description?: string;
+}
+
+export interface EmployeePreferences {
+    target_shifts_per_week: number;
+    min_shifts_per_week: number;
+    max_shifts_per_week: number;
+    constraints: EmployeeConstraint[];
+}
+
 export interface Employee {
     id: string;
     first_name: string;
@@ -5,7 +24,8 @@ export interface Employee {
     email: string;
     phone_number: string;
     avatar_url?: string;
-    total_hours_per_week: number;
+    role_ids: string[];
+    preferences: EmployeePreferences;
     created_at: string | Date;
 }
 

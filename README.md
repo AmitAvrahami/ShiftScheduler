@@ -16,7 +16,9 @@ A modern, scalable shift scheduling application built with React, TypeScript, an
 - **Real-Time Dashboard:** View real-time assigned shifts in a weekly calendar layout decoupled smoothly by Employee and Date.
 - **Dynamic Data Mocking:** Fast iteration using our built-in Firestore Mock Seed functionality.
 - **Shift Management:** Add, edit, and delete employee shifts with powerful form validations and instant visual feedback (Toasts).
+- **Employee Preferences:** Define strict roles, target shifts, and complex daily constraints (time-based and preference-based) using dynamic schema validations.
 - **Responsive Layout:** Clean, professional interface leveraging tailored CSS properties spanning mobile and desktop viewports.
+- **Testing Infrastructure:** High-coverage unit test suites spanning the application using Vitest and React Testing Library.
 
 ## 🛠 Project Structure
 
@@ -76,3 +78,7 @@ We follow **Conventional Commits** for commit messages.
 - `fix:` for bug fixes
 - `refactor:` for code architecture updates
 - `chore:` for tooling and dependency changes
+
+## 🎓 Acknowledgements & Credits
+
+Special thanks and credit to **the mathematicians** for the architectural foundation, algorithm testing, shift constraints architecture, and the comprehensive data schemas that power the intelligent scheduling capabilities of this application. Their rigorous testing and mathematical modeling ensures our features are robust and performant edge-to-edge.

@@ -54,7 +54,7 @@ export function WeeklyCalendar({ currentDate, shifts, employees, roles }: Weekly
                                 <p className="font-medium text-sm text-gray-900 truncate">
                                     {employee.first_name} {employee.last_name}
                                 </p>
-                                <p className="text-xs text-gray-500 truncate">{employee.total_hours_per_week}h/wk</p>
+                                <p className="text-xs text-gray-500 truncate">Target: {employee.preferences?.target_shifts_per_week ?? 'N/A'} shifts</p>
                             </div>
                         </div>
 
