@@ -81,8 +81,9 @@ export function ShiftModal({ isOpen, onClose, employees, roles, onAddShift }: Sh
 
                 <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Employee</label>
+                        <label htmlFor="employee_id" className="block text-sm font-medium text-gray-700 mb-1">Employee</label>
                         <select
+                            id="employee_id"
                             {...register('employee_id')}
                             className="w-full rounded-md border border-gray-300 p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                         >
@@ -97,8 +98,9 @@ export function ShiftModal({ isOpen, onClose, employees, roles, onAddShift }: Sh
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                        <label htmlFor="role_id" className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                         <select
+                            id="role_id"
                             {...register('role_id')}
                             className="w-full rounded-md border border-gray-300 p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                         >
@@ -113,8 +115,9 @@ export function ShiftModal({ isOpen, onClose, employees, roles, onAddShift }: Sh
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                        <label htmlFor="date" className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                         <input
+                            id="date"
                             type="date"
                             {...register('date')}
                             className="w-full rounded-md border border-gray-300 p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
@@ -124,8 +127,9 @@ export function ShiftModal({ isOpen, onClose, employees, roles, onAddShift }: Sh
 
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                            <label htmlFor="startTime" className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
                             <input
+                                id="startTime"
                                 type="time"
                                 {...register('startTime')}
                                 className="w-full rounded-md border border-gray-300 p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
@@ -133,8 +137,9 @@ export function ShiftModal({ isOpen, onClose, employees, roles, onAddShift }: Sh
                             {errors.startTime && <p className="text-red-500 text-sm mt-1">{errors.startTime.message}</p>}
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                            <label htmlFor="endTime" className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
                             <input
+                                id="endTime"
                                 type="time"
                                 {...register('endTime')}
                                 className="w-full rounded-md border border-gray-300 p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
@@ -144,8 +149,9 @@ export function ShiftModal({ isOpen, onClose, employees, roles, onAddShift }: Sh
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
+                        <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
                         <textarea
+                            id="notes"
                             {...register('notes')}
                             rows={3}
                             placeholder="Add any specific instructions..."

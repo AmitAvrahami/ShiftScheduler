@@ -31,11 +31,11 @@ describe('WeeklyCalendar Component', () => {
             employee_id: 'emp1',
             role_id: 'role1',
             location_id: 'loc1',
-            start_time: '2026-02-23T09:00:00Z',
-            end_time: '2026-02-23T17:00:00Z',
+            start_time: '2026-02-23T09:00:00',
+            end_time: '2026-02-23T17:00:00',
             break_duration_minutes: 30,
             status: 'scheduled',
-            assigned_date: '2026-02-22T00:00:00Z',
+            assigned_date: '2026-02-22T00:00:00',
         },
     ];
 
