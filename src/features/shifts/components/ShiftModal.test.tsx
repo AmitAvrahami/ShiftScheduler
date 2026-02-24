@@ -86,10 +86,22 @@ describe('ShiftModal Component', () => {
                 status: 'scheduled',
             }));
 
-            // Validate time explicitly by checking it includes the correct time portions
+            // The string is generated using new Date().toISOString()
+            // In a +2 offset, "2026-02-23T09:00:00" becomes "2026-02-23T07:00:00.000Z" (UTC).
+            // To make the test environment independent, simply ensure it is parsed as a valid date string
+            // that represents the selected inputs.
             const shiftArg = mockOnAddShift.mock.calls[0][0];
-            expect(shiftArg.start_time).toContain('09:00:00');
-            expect(shiftArg.end_time).toContain('17:00:00');
+            const startDate = new Date(shiftArg.start_time);
+            const endDate = new Date(shiftArg.end_time);
+
+            // We know the date was entered as '2026-02-23' and time '09:00' / '17:00' LOCAL time.
+            expect(startDate.getFullYear()).toBe(2026);
+            expect(startDate.getMonth()).toBe(1); // 0-indexed, so 1 = Feb
+            expect(startDate.getDate()).toBe(23);
+            expect(startDate.getHours()).toBe(9);
+
+            expect(endDate.getHours()).toBe(17);
+
             expect(mockOnClose).toHaveBeenCalled();
         });
     });
