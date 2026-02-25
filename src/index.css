@@ -1,3 +1,6 @@
+/* ── Hebrew font ─────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,8 +8,30 @@
 @layer base {
   html, body {
     @apply font-roboto text-text-primary bg-background h-screen w-screen overflow-x-hidden;
+    /** Smooth direction switch when user toggles language */
+    transition: direction 0ms;
   }
+
   h1, h2, h3, h4, h5, h6 {
     @apply font-euclid;
+  }
+
+  /* RTL: apply Hebrew font when document direction is right-to-left */
+  :root[dir="rtl"] body,
+  :root[dir="rtl"] input,
+  :root[dir="rtl"] select,
+  :root[dir="rtl"] textarea,
+  :root[dir="rtl"] button {
+    font-family: 'Noto Sans Hebrew', 'Roboto', sans-serif;
+  }
+
+  /* RTL: headings */
+  :root[dir="rtl"] h1,
+  :root[dir="rtl"] h2,
+  :root[dir="rtl"] h3,
+  :root[dir="rtl"] h4,
+  :root[dir="rtl"] h5,
+  :root[dir="rtl"] h6 {
+    font-family: 'Noto Sans Hebrew', 'EuclidCircularSemibold', sans-serif;
   }
 }

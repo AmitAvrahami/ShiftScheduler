@@ -5,14 +5,17 @@ A modern, scalable shift scheduling application built with React, TypeScript, an
 ## 🚀 Technologies
 
 - **Frontend:** React 18, TypeScript, Vite
-- **Styling:** Tailwind CSS, PostCSS
+- **Styling:** Tailwind CSS, PostCSS (with RTL logical properties)
 - **State & Data:** Custom React Hooks, Firebase Firestore (Real-time `onSnapshot`)
 - **Forms & Validation:** React Hook Form, Zod
 - **Routing:** React Router DOM
+- **Internationalization (i18n):** Native Context API with Strategy Pattern
 - **Date Utilities:** date-fns
 
 ## 📦 Features
 
+- **Algorithmic Scheduling Engine:** Automatically generates optimal weekly drafts balancing employee constraints, target shifts, and shift coverage requirements.
+- **Internationalization (i18n) & RTL:** Full support for Hebrew (RTL) and English (LTR) via a dynamic strategy pattern implementation, accessible from a global language switcher.
 - **Real-Time Dashboard:** View real-time assigned shifts in a weekly calendar layout decoupled smoothly by Employee and Date.
 - **Dynamic Data Mocking:** Fast iteration using our built-in Firestore Mock Seed functionality.
 - **Shift Management:** Add, edit, and delete employee shifts with powerful form validations and instant visual feedback (Toasts).
