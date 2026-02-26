@@ -75,11 +75,16 @@ const translations: Record<LanguageCode, TranslationMap> = {
 
         // Weekly Calendar
         'calendar.employee': 'Employee',
+        'calendar.shift': 'Shift',
         'calendar.noEmployees': 'No employees added yet.',
         'calendar.targetShifts': 'Target: {count} shifts',
 
         // Shift Modal
         'shiftModal.title': 'Add New Shift',
+        'shiftModal.shiftType': 'Shift Type',
+        'shiftModal.morning': 'Morning',
+        'shiftModal.afternoon': 'Afternoon',
+        'shiftModal.night': 'Night',
         'shiftModal.employee': 'Employee',
         'shiftModal.selectEmployee': 'Select an employee...',
         'shiftModal.role': 'Role',
@@ -179,6 +184,44 @@ const translations: Record<LanguageCode, TranslationMap> = {
 
         // Language Selector
         'language.select': 'Language',
+
+        // Schedule Demo
+        'scheduleDemo.title': 'Shift Schedule Demo',
+        'scheduleDemo.subtitle': 'Week of March 1–7, 2026',
+        'scheduleDemo.employees': '{count} employees',
+        'scheduleDemo.shifts': '{count} shifts',
+        'scheduleDemo.totalSlots': '{count} total slots',
+        'scheduleDemo.saveFirebase': '🔥 Save to Firebase',
+        'scheduleDemo.saving': '⏳ Saving...',
+        'scheduleDemo.savedFirebase': '✅ Saved to Firebase',
+        'scheduleDemo.errorRetry': '❌ Error — Retry',
+        'scheduleDemo.runAlgorithm': '🚀 Run Scheduling Algorithm',
+        'scheduleDemo.rerunAlgorithm': '🔄 Re-run Algorithm',
+        'scheduleDemo.running': '⏳ Running Algorithm...',
+        'scheduleDemo.targetLabel': 'target {count}',
+        'scheduleDemo.morningOnly': 'Morning only',
+        'scheduleDemo.noNightExcMon': 'No night (exc. Mon)',
+        'scheduleDemo.max3Shifts': 'Max 3 shifts',
+        'scheduleDemo.archived': 'Archived (Miluim)',
+        'scheduleDemo.sarcasticTitle': '😅 Sarcastic Fallback Triggered',
+        'scheduleDemo.sarcasticSubtitle': 'Algorithm exhausted all iterations. Hard constraints could not be fully satisfied.',
+        'scheduleDemo.perfectTitle': '✅ Perfect Schedule Found!',
+        'scheduleDemo.softViolationsTitle': '📊 Valid Schedule with Soft Violations',
+        'scheduleDemo.penaltyInfo': 'Penalty score: {score} · Computed in {elapsed}ms',
+        'scheduleDemo.overLimit': '↑ over limit',
+        'scheduleDemo.underMinimum': '↓ under minimum',
+        'scheduleDemo.gridTitle': '📋 Schedule Grid',
+        'scheduleDemo.violationsTitle': '📝 Constraint Violations Summary ({count})',
+        'scheduleDemo.noStaff': '⚠ No staff assigned',
+        'scheduleDemo.staff': '{filled}/{needed} staff',
+        'scheduleDemo.readyTitle': 'Ready to schedule',
+        'scheduleDemo.readySubtitle': 'Press Run Scheduling Algorithm to find the optimal assignment for the week',
+        'scheduleDemo.readyInfo': 'Simulated Annealing · 15,000 iterations · {employees} employees · {shifts} shifts · {slots} slots',
+        'scheduleDemo.morning': '🌅 Morning',
+        'scheduleDemo.afternoon': '☀️ Afternoon',
+        'scheduleDemo.evening': '🌆 Evening',
+        'scheduleDemo.night': '🌙 Night',
+        'scheduleDemo.savedMessage': '✅ Saved {employees} employees ({names}) and {shifts} shifts to Firebase!',
     },
 
     // ─── Hebrew ────────────────────────────────────────────────────────────
@@ -219,11 +262,16 @@ const translations: Record<LanguageCode, TranslationMap> = {
 
         // Weekly Calendar
         'calendar.employee': 'עובד',
+        'calendar.shift': 'משמרת',
         'calendar.noEmployees': 'לא הוספו עובדים עדיין.',
         'calendar.targetShifts': 'יעד: {count} משמרות',
 
         // Shift Modal
         'shiftModal.title': 'הוספת משמרת חדשה',
+        'shiftModal.shiftType': 'סוג משמרת',
+        'shiftModal.morning': 'בוקר',
+        'shiftModal.afternoon': 'צהריים',
+        'shiftModal.night': 'לילה',
         'shiftModal.employee': 'עובד',
         'shiftModal.selectEmployee': 'בחר עובד...',
         'shiftModal.role': 'תפקיד',
@@ -323,6 +371,44 @@ const translations: Record<LanguageCode, TranslationMap> = {
 
         // Language Selector
         'language.select': 'שפה',
+
+        // Schedule Demo
+        'scheduleDemo.title': 'הדגמת לוח משמרות',
+        'scheduleDemo.subtitle': 'שבוע 1–7 במרץ, 2026',
+        'scheduleDemo.employees': '{count} עובדים',
+        'scheduleDemo.shifts': '{count} משמרות',
+        'scheduleDemo.totalSlots': '{count} סלוטים סה"כ',
+        'scheduleDemo.saveFirebase': '🔥 שמור ב-Firebase',
+        'scheduleDemo.saving': '⏳ שומר...',
+        'scheduleDemo.savedFirebase': '✅ נשמר ב-Firebase',
+        'scheduleDemo.errorRetry': '❌ שגיאה — נסה שוב',
+        'scheduleDemo.runAlgorithm': '🚀 הרץ את אלגוריתם השיבוץ',
+        'scheduleDemo.rerunAlgorithm': '🔄 הרץ שוב',
+        'scheduleDemo.running': '⏳ מריץ את האלגוריתם...',
+        'scheduleDemo.targetLabel': 'יעד {count}',
+        'scheduleDemo.morningOnly': 'בוקר בלבד',
+        'scheduleDemo.noNightExcMon': 'ללא לילה (פרט לשני)',
+        'scheduleDemo.max3Shifts': 'מקס 3 משמרות',
+        'scheduleDemo.archived': 'בארכיון (מילואים)',
+        'scheduleDemo.sarcasticTitle': '😅 הופעל לוח ציני',
+        'scheduleDemo.sarcasticSubtitle': 'האלגוריתם מיצה את כל האיטרציות. לא ניתן היה לעמוד בכל האילוצים הקריטיים.',
+        'scheduleDemo.perfectTitle': '✅ נמצא לוח מושלם!',
+        'scheduleDemo.softViolationsTitle': '📊 לוח תקין עם הפרות קלות',
+        'scheduleDemo.penaltyInfo': 'ציון עונש: {score} · חושב ב-{elapsed}ms',
+        'scheduleDemo.overLimit': '↑ מעל המגבלה',
+        'scheduleDemo.underMinimum': '↓ מתחת למינימום',
+        'scheduleDemo.gridTitle': '📋 לוח שיבוצים',
+        'scheduleDemo.violationsTitle': '📝 סיכום הפרות אילוצים ({count})',
+        'scheduleDemo.noStaff': '⚠ לא שובצו עובדים',
+        'scheduleDemo.staff': '{filled}/{needed} עובדים',
+        'scheduleDemo.readyTitle': 'מוכן לשיבוץ',
+        'scheduleDemo.readySubtitle': 'לחץ על "הרץ את אלגוריתם השיבוץ" כדי למצוא את השיבוץ האופטימלי לשבוע',
+        'scheduleDemo.readyInfo': 'סימולציה מבוססת קירור · 15,000 איטרציות · {employees} עובדים · {shifts} משמרות · {slots} סלוטים',
+        'scheduleDemo.morning': 'בוקר',
+        'scheduleDemo.afternoon': 'צהריים',
+        'scheduleDemo.evening': 'ערב',
+        'scheduleDemo.night': 'לילה',
+        'scheduleDemo.savedMessage': '✅ {employees} עובדים ({names}) ו-{shifts} משמרות נשמרו ב-Firebase!',
     },
 };
 

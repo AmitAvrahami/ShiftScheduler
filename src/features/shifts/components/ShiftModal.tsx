@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod';
@@ -5,6 +6,7 @@ import { X, Loader2 } from 'lucide-react';
 import type { Employee, Role } from '../../../types';
 import toast from 'react-hot-toast';
 import { useLanguage } from '../../../i18n/LanguageContext';
+import { SHIFT_HOURS, type ShiftPeriod } from '../../../config/shifts';
 
 /**
  * Builds the shift Zod schema with translated error messages.
@@ -22,7 +24,11 @@ function buildShiftSchema(t: (key: string) => string) {
             endTime: z.string().min(1, t('shiftModal.validation.endTimeRequired')),
             notes: z.string().optional(),
         })
-        .refine((data) => data.startTime < data.endTime, {
+        .refine((data) => {
+            // Allow overnight shifts (e.g. night 22:45 → 06:45 next day)
+            if (data.startTime >= '20:00' && data.endTime <= '08:00') return true;
+            return data.startTime < data.endTime;
+        }, {
             message: t('shiftModal.validation.endAfterStart'),
             path: ['endTime'],
         });
@@ -51,6 +57,7 @@ export function ShiftModal({ isOpen, onClose, employees, roles, onAddShift }: Sh
         register,
         handleSubmit,
         reset,
+        setValue,
         formState: { errors, isSubmitting },
     } = useForm<ShiftFormValues>({
         resolver: zodResolver(shiftSchema),
@@ -61,7 +68,26 @@ export function ShiftModal({ isOpen, onClose, employees, roles, onAddShift }: Sh
         },
     });
 
+    const [selectedPeriod, setSelectedPeriod] = useState<ShiftPeriod | ''>('');
+
+    // Reset period selection whenever the modal opens/closes
+    useEffect(() => {
+        if (!isOpen) {
+            setSelectedPeriod('');
+        }
+    }, [isOpen]);
+
     if (!isOpen) return null;
+
+    const formatTimeValue = (hour: number, minute: number) =>
+        `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+
+    const handlePeriodSelect = (period: ShiftPeriod) => {
+        setSelectedPeriod(period);
+        const cfg = SHIFT_HOURS[period];
+        setValue('startTime', formatTimeValue(cfg.startHour, cfg.startMinute), { shouldValidate: true });
+        setValue('endTime', formatTimeValue(cfg.endHour, cfg.endMinute), { shouldValidate: true });
+    };
 
     /**
      * Submits shift data to Firestore.
@@ -70,7 +96,13 @@ export function ShiftModal({ isOpen, onClose, employees, roles, onAddShift }: Sh
     const onSubmit = async (data: ShiftFormValues) => {
         try {
             const startDateTime = new Date(`${data.date}T${data.startTime}:00`).toISOString();
-            const endDateTime = new Date(`${data.date}T${data.endTime}:00`).toISOString();
+
+            // For overnight shifts (end time < start time), end falls on the next day
+            const endDate = new Date(`${data.date}T${data.endTime}:00`);
+            if (data.endTime < data.startTime) {
+                endDate.setDate(endDate.getDate() + 1);
+            }
+            const endDateTime = endDate.toISOString();
 
             await onAddShift({
                 employee_id: data.employee_id,
@@ -83,6 +115,7 @@ export function ShiftModal({ isOpen, onClose, employees, roles, onAddShift }: Sh
 
             toast.success(t('shiftModal.shiftCreated'));
             reset();
+            setSelectedPeriod('');
             onClose();
         } catch {
             toast.error(t('shiftModal.shiftFailed'));
@@ -163,6 +196,35 @@ export function ShiftModal({ isOpen, onClose, employees, roles, onAddShift }: Sh
                         {errors.date && (
                             <p className="text-red-500 text-sm mt-1">{errors.date.message}</p>
                         )}
+                    </div>
+
+                    {/* Shift Period Quick-Select */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            {t('shiftModal.shiftType')}
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                            {(['morning', 'afternoon', 'night'] as ShiftPeriod[]).map((period) => {
+                                const cfg = SHIFT_HOURS[period];
+                                const start = formatTimeValue(cfg.startHour, cfg.startMinute);
+                                const end = formatTimeValue(cfg.endHour, cfg.endMinute);
+                                return (
+                                    <button
+                                        key={period}
+                                        type="button"
+                                        onClick={() => handlePeriodSelect(period)}
+                                        className={`flex flex-col items-center py-2 px-1 rounded-md border text-sm transition-colors ${
+                                            selectedPeriod === period
+                                                ? 'bg-blue-50 border-blue-500 text-blue-700'
+                                                : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                                        }`}
+                                    >
+                                        <span className="font-medium">{t(`shiftModal.${period}`)}</span>
+                                        <span className="text-xs opacity-70">{start}–{end}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
 
                     {/* Start / End Times */}
