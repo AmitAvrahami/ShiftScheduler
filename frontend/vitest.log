@@ -1,0 +1,1597 @@
+[1m[43m DEPRECATED [49m[22m [33m"cache.dir" is deprecated, use Vite's "cacheDir" instead if you want to change the cache director. Note caches will be written to "cacheDir/vitest"[39m
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/Users/amitmac/Projects/ShiftScheduler/frontend[39m
+
+ [31m❯[39m src/utils/__tests__/weekUtils.test.ts [2m([22m[2m10 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 9[2mms[22m[39m
+       [32m✓[39m returns a string matching format /^d{4}-Wd{2}$/[32m 1[2mms[22m[39m
+       [32m✓[39m returns the correct weekId for a known date[32m 1[2mms[22m[39m
+       [32m✓[39m returns array of exactly 7 dates[32m 0[2mms[22m[39m
+       [32m✓[39m first date is Sunday and last is Saturday[32m 0[2mms[22m[39m
+[31m       [31m×[31m dates are correct for a known weekId (2024-W10)[39m[32m 5[2mms[22m[39m
+       [32m✓[39m returns a Date that is Monday 23:59[32m 0[2mms[22m[39m
+       [32m✓[39m the Monday belongs to the correct week[32m 0[2mms[22m[39m
+       [32m✓[39m returns true for a past week[32m 0[2mms[22m[39m
+       [32m✓[39m returns false for a future week[32m 0[2mms[22m[39m
+       [32m✓[39m returns false if today is Monday before 23:59 (edge case)[32m 0[2mms[22m[39m
+[90mstderr[2m | src/pages/__tests__/ManagerConstraintsPage.test.tsx[2m > [22m[2mManagerConstraintsPage[2m > [22m[2mrenders the page title with weekId
+[22m[39m⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+[90mstderr[2m | src/pages/__tests__/ConstraintFormPage.test.tsx[2m > [22m[2mConstraintFormPage[2m > [22m[2mrenders 7 days in Hebrew with correct shifts
+[22m[39m⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+[90mstderr[2m | src/pages/__tests__/ManagerConstraintsPage.test.tsx[2m > [22m[2mManagerConstraintsPage[2m > [22m[2mrenders the page title with weekId
+[22m[39mWarning: Each child in a list should have a unique "key" prop.
+
+Check the render method of `ManagerConstraintsPage`. See https://reactjs.org/link/warning-keys for more information.
+    at tr
+    at ManagerConstraintsPage (/Users/amitmac/Projects/ShiftScheduler/frontend/src/pages/ManagerConstraintsPage.tsx:22:65)
+    at Router (/Users/amitmac/Projects/ShiftScheduler/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/amitmac/Projects/ShiftScheduler/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+
+ [31m❯[39m src/pages/__tests__/ConstraintFormPage.test.tsx [2m([22m[2m5 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[33m 2490[2mms[22m[39m
+     [32m✓[39m renders 7 days in Hebrew with correct shifts[32m 35[2mms[22m[39m
+     [32m✓[39m toggles shift checkboxes on and off[32m 199[2mms[22m[39m
+     [32m✓[39m enables submit button when form is dirty[32m 100[2mms[22m[39m
+[31m     [31m×[31m calls API and shows success toast (implicitly via API mock check)[39m[33m 1146[2mms[22m[39m
+[31m     [31m×[31m shows lock message and forces read-only when isLocked=true[39m[33m 1010[2mms[22m[39m
+ [31m❯[39m src/pages/__tests__/ManagerConstraintsPage.test.tsx [2m([22m[2m7 tests[22m[2m | [22m[31m5 failed[39m[2m)[22m[33m 3165[2mms[22m[39m
+     [32m✓[39m renders the page title with weekId[32m 25[2mms[22m[39m
+[31m     [31m×[31m renders ALL employees as rows (even those with no constraints)[39m[33m 1005[2mms[22m[39m
+[31m     [31m×[31m employees with no constraints show "✓" in green for all cells[39m[33m 1009[2mms[22m[39m
+[31m     [31m×[31m Previous week / next week navigation buttons work[39m[33m 1004[2mms[22m[39m
+[31m     [31m×[31m "נעל אילוצים" button is visible and enabled when not locked[39m[32m 81[2mms[22m[39m
+[31m     [31m×[31m Clicking lock button shows confirmation dialog and confirms[39m[32m 23[2mms[22m[39m
+     [32m✓[39m After lock: button is disabled[32m 18[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 8 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/pages/__tests__/ConstraintFormPage.test.tsx[2m > [22mConstraintFormPage[2m > [22mcalls API and shows success toast (implicitly via API mock check)
+[31m[1mAssertionError[22m[39m: expected "vi.fn()" to be called with arguments: [ StringContaining{…}, Any<Object> ][90m
+
+Received: 
+
+[1m  1st vi.fn() call:
+
+[22m[2m  [[22m
+[32m-   StringContaining "/api/constraints",[90m
+[32m-   Any<Object>,[90m
+[31m+   "/constraints",[90m
+[31m+   {[90m
+[31m+     "constraints": [[90m
+[31m+       {[90m
+[31m+         "canWork": false,[90m
+[31m+         "date": 2026-03-07T22:00:00.000Z,[90m
+[31m+         "shift": "morning",[90m
+[31m+       },[90m
+[31m+     ],[90m
+[31m+     "weekId": "2026-W11",[90m
+[31m+   },[90m
+[2m  ][22m
+[39m[90m
+
+Number of calls: [1m1[22m
+[39m
+
+Ignored nodes: comments, script, style
+[36m<html>[39m
+  [36m<head />[39m
+  [36m<body>[39m
+    [36m<div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"max-w-4xl mx-auto p-4 md:p-6 space-y-6"[39m
+        [33mdir[39m=[32m"rtl"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex flex-col md:flex-row justify-between items-start md:items-center gap-4"[39m
+        [36m>[39m
+          [36m<a[39m
+            [33mclass[39m=[32m"text-blue-600 hover:text-blue-800 font-medium mb-2 md:mb-0"[39m
+            [33mhref[39m=[32m"/dashboard"[39m
+          [36m>[39m
+            [0m→ חזרה ללוח הבקרה[0m
+          [36m</a>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"flex flex-col md:flex-row justify-between items-start md:items-center gap-4"[39m
+          [36m>[39m
+            [36m<h1[39m
+              [33mclass[39m=[32m"text-2xl font-bold text-slate-800"[39m
+            [36m>[39m
+              [0mהגשת אילוצים לשבוע[0m
+            [36m</h1>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center space-x-2 space-x-reverse bg-white rounded-lg shadow-sm border border-slate-200 p-1"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"p-2 hover:bg-slate-100 rounded text-slate-600 transition-colors"[39m
+                [33mtitle[39m=[32m"שבוע הבא"[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33mclass[39m=[32m"w-5 h-5"[39m
+                  [33mfill[39m=[32m"none"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [36m>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M9 5l7 7-7 7"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                  [36m/>[39m
+                [36m</svg>[39m
+              [36m</button>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"font-medium px-4 text-slate-700 min-w-[120px] text-center"[39m
+              [36m>[39m
+                [0m2026-W11[0m
+              [36m</span>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"p-2 hover:bg-slate-100 rounded text-slate-600 transition-colors"[39m
+                [33mtitle[39m=[32m"שבוע קודם"[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33mclass[39m=[32m"w-5 h-5"[39m
+                  [33mfill[39m=[32m"none"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [36m>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M15 19l-7-7 7-7"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                  [36m/>[39m
+                [36m</svg>[39m
+              [36m</button>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"p-4 rounded-lg border bg-green-50 border-green-200 text-green-800"[39m
+        [36m>[39m
+          [0mהאילוצים נשלחו בהצלחה[0m
+        [36m</div>[39m
+        [36m<form[39m
+          [33mclass[39m=[32m"bg-white shadow rounded-lg overflow-hidden border border-slate-200"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"p-4 bg-slate-50 border-b border-slate-200"[39m
+          [36m>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"text-sm text-slate-600"[39m
+            [36m>[39m
+              [0mסמן את המשמרות בהן [0m
+              [36m<span[39m
+                [33mclass[39m=[32m"font-bold text-red-600"[39m
+              [36m>[39m
+                [0mלא תוכל/י[0m
+              [36m</span>[39m
+              [0m לעבוד.[0m
+            [36m</p>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"divide-y divide-slate-200"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"p-4 md:p-6 flex flex-col md:flex-row md:items-center hover:bg-slate-50 transition-colors"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"md:w-1/4 mb-4 md:mb-0"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                [36m>[39m
+                  [0mראשון[0m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"text-sm text-slate-500"[39m
+                [36m>[39m
+                  [0m8/3[0m
+                [36m</div>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"md:w-3/4 flex flex-wrap gap-4"[39m
+              [36m>[39m
+                [36m<label[39m
+                  [33mclass[39m=[32m"flex items-center space-x-3 space-x-reverse p-3 rounded-lg border cursor-pointer transition-all border-indigo-500 ring-1 ring-indigo-500 bg-indigo-50 "[39m
+                [36m>[39m
+                  [36m<input[39m
+                    [33mclass[39m=[32m"w-5 h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 focus:ring-offset-2"[39m
+                    [33mtype[39m=[32m"checkbox"[39m
+                  [36m/>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"text-indigo-900 font-medium"[39m
+                  [36m>[39m
+                    [0mבוקר[0m
+                  [36m</span>[39m
+                [36m</label>[39m
+                [36m<label[39m
+                  [33mclass[39m=[32m"flex items-center space-x-3 space-x-reverse p-3 rounded-lg border cursor-pointer transition-all border-slate-200 bg-white hover:border-slate-300 "[39m
+                [36m>[39m
+                  [36m<input[39m
+                    [33mclass[39m=[32m"w-5 h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 focus:ring-offset-2"[39m
+                    [33mtype[39m=[32m"checkbox"[39m
+                  [36m/>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"text-slate-700"[39m
+                  [36m>[39m
+                    [0mצהריים[0m
+                  [36m</span>[39m
+                [36m</label>[39m
+                [36m<label[39m
+                  [33mclass[39m=[32m"flex items-center space-x-3 space-x-reverse p-3 rounded-lg border cursor-pointer transition-all border-slate-200 bg-white hover:border-slate-300 "[39m
+                [36m>[39m
+  ...
+[36m [2m❯[22m src/pages/__tests__/ConstraintFormPage.test.tsx:[2m134:30[22m[39m
+    [90m132| [39m
+    [90m133| [39m        [35mawait[39m [34mwaitFor[39m(() [33m=>[39m {
+    [90m134| [39m            expect(api.post).toHaveBeenCalledWith(expect.stringContain…
+    [90m   | [39m                             [31m^[39m
+    [90m135| [39m        })[33m;[39m
+    [90m136| [39m    })[33m;[39m
+[90m [2m❯[22m runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:[2m47:12[22m[39m
+[90m [2m❯[22m checkCallback node_modules/@testing-library/dom/dist/wait-for.js:[2m124:77[22m[39m
+[90m [2m❯[22m Timeout.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:[2m118:16[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/pages/__tests__/ConstraintFormPage.test.tsx[2m > [22mConstraintFormPage[2m > [22mshows lock message and forces read-only when isLocked=true
+[31m[1mTestingLibraryElementError[22m[39m: Unable to find an element with the text: האילוצים ננעלו ולא ניתן לשנות. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"max-w-4xl mx-auto p-4 md:p-6 space-y-6"[39m
+      [33mdir[39m=[32m"rtl"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"flex flex-col md:flex-row justify-between items-start md:items-center gap-4"[39m
+      [36m>[39m
+        [36m<a[39m
+          [33mclass[39m=[32m"text-blue-600 hover:text-blue-800 font-medium mb-2 md:mb-0"[39m
+          [33mhref[39m=[32m"/dashboard"[39m
+        [36m>[39m
+          [0m→ חזרה ללוח הבקרה[0m
+        [36m</a>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex flex-col md:flex-row justify-between items-start md:items-center gap-4"[39m
+        [36m>[39m
+          [36m<h1[39m
+            [33mclass[39m=[32m"text-2xl font-bold text-slate-800"[39m
+          [36m>[39m
+            [0mהגשת אילוצים לשבוע[0m
+          [36m</h1>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"flex items-center space-x-2 space-x-reverse bg-white rounded-lg shadow-sm border border-slate-200 p-1"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"p-2 hover:bg-slate-100 rounded text-slate-600 transition-colors"[39m
+              [33mtitle[39m=[32m"שבוע הבא"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mclass[39m=[32m"w-5 h-5"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M9 5l7 7-7 7"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"2"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+            [36m</button>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"font-medium px-4 text-slate-700 min-w-[120px] text-center"[39m
+            [36m>[39m
+              [0m2026-W11[0m
+            [36m</span>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"p-2 hover:bg-slate-100 rounded text-slate-600 transition-colors"[39m
+              [33mtitle[39m=[32m"שבוע קודם"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mclass[39m=[32m"w-5 h-5"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M15 19l-7-7 7-7"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"2"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+            [36m</button>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-lg flex items-center space-x-2 space-x-reverse"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33mclass[39m=[32m"w-5 h-5"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"[39m
+            [33mstroke-linecap[39m=[32m"round"[39m
+            [33mstroke-linejoin[39m=[32m"round"[39m
+            [33mstroke-width[39m=[32m"2"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+        [36m<span[39m
+          [33mclass[39m=[32m"font-medium"[39m
+        [36m>[39m
+          [0mהאילוצים ננעלו ולא ניתן לשנות. [0m
+        [36m</span>[39m
+      [36m</div>[39m
+      [36m<form[39m
+        [33mclass[39m=[32m"bg-white shadow rounded-lg overflow-hidden border border-slate-200"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"p-4 bg-slate-50 border-b border-slate-200"[39m
+        [36m>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"text-sm text-slate-600"[39m
+          [36m>[39m
+            [0mסמן את המשמרות בהן [0m
+            [36m<span[39m
+              [33mclass[39m=[32m"font-bold text-red-600"[39m
+            [36m>[39m
+              [0mלא תוכל/י[0m
+            [36m</span>[39m
+            [0m לעבוד.[0m
+          [36m</p>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"divide-y divide-slate-200"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"p-4 md:p-6 flex flex-col md:flex-row md:items-center hover:bg-slate-50 transition-colors"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"md:w-1/4 mb-4 md:mb-0"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+              [36m>[39m
+                [0mראשון[0m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"text-sm text-slate-500"[39m
+              [36m>[39m
+                [0m8/3[0m
+              [36m</div>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"md:w-3/4 flex flex-wrap gap-4"[39m
+            [36m>[39m
+              [36m<label[39m
+                [33mclass[39m=[32m"flex items-center space-x-3 space-x-reverse p-3 rounded-lg border cursor-pointer transition-all border-slate-200 bg-white hover:border-slate-300 opacity-70 cursor-not-allowed"[39m
+              [36m>[39m
+                [36m<input[39m
+                  [33mclass[39m=[32m"w-5 h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 focus:ring-offset-2"[39m
+                  [33mdisabled[39m=[32m""[39m
+                  [33mtype[39m=[32m"checkbox"[39m
+                [36m/>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"text-slate-700"[39m
+                [36m>[39m
+                  [0mבוקר[0m
+                [36m</span>[39m
+              [36m</label>[39m
+              [36m<label[39m
+                [33mclass[39m=[32m"flex items-center space-x-3 space-x-reverse p-3 rounded-lg border cursor-pointer transition-all border-slate-200 bg-white hover:border-slate-300 opacity-70 cursor-not-allowed"[39m
+              [36m>[39m
+                [36m<input[39m
+                  [33mclass[39m=[32m"w-5 h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 focus:rin...
+
+Ignored nodes: comments, script, style
+[36m<html>[39m
+  [36m<head />[39m
+  [36m<body>[39m
+    [36m<div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"max-w-4xl mx-auto p-4 md:p-6 space-y-6"[39m
+        [33mdir[39m=[32m"rtl"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex flex-col md:flex-row justify-between items-start md:items-center gap-4"[39m
+        [36m>[39m
+          [36m<a[39m
+            [33mclass[39m=[32m"text-blue-600 hover:text-blue-800 font-medium mb-2 md:mb-0"[39m
+            [33mhref[39m=[32m"/dashboard"[39m
+          [36m>[39m
+            [0m→ חזרה ללוח הבקרה[0m
+          [36m</a>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"flex flex-col md:flex-row justify-between items-start md:items-center gap-4"[39m
+          [36m>[39m
+            [36m<h1[39m
+              [33mclass[39m=[32m"text-2xl font-bold text-slate-800"[39m
+            [36m>[39m
+              [0mהגשת אילוצים לשבוע[0m
+            [36m</h1>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center space-x-2 space-x-reverse bg-white rounded-lg shadow-sm border border-slate-200 p-1"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"p-2 hover:bg-slate-100 rounded text-slate-600 transition-colors"[39m
+                [33mtitle[39m=[32m"שבוע הבא"[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33mclass[39m=[32m"w-5 h-5"[39m
+                  [33mfill[39m=[32m"none"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [36m>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M9 5l7 7-7 7"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                  [36m/>[39m
+                [36m</svg>[39m
+              [36m</button>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"font-medium px-4 text-slate-700 min-w-[120px] text-center"[39m
+              [36m>[39m
+                [0m2026-W11[0m
+              [36m</span>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"p-2 hover:bg-slate-100 rounded text-slate-600 transition-colors"[39m
+                [33mtitle[39m=[32m"שבוע קודם"[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33mclass[39m=[32m"w-5 h-5"[39m
+                  [33mfill[39m=[32m"none"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [36m>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M15 19l-7-7 7-7"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                  [36m/>[39m
+                [36m</svg>[39m
+              [36m</button>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-lg flex items-center space-x-2 space-x-reverse"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33mclass[39m=[32m"w-5 h-5"[39m
+            [33mfill[39m=[32m"none"[39m
+            [33mstroke[39m=[32m"currentColor"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [36m>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-linejoin[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"font-medium"[39m
+          [36m>[39m
+            [0mהאילוצים ננעלו ולא ניתן לשנות. [0m
+          [36m</span>[39m
+        [36m</div>[39m
+        [36m<form[39m
+          [33mclass[39m=[32m"bg-white shadow rounded-lg overflow-hidden border border-slate-200"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"p-4 bg-slate-50 border-b border-slate-200"[39m
+          [36m>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"text-sm text-slate-600"[39m
+            [36m>[39m
+              [0mסמן את המשמרות בהן [0m
+              [36m<span[39m
+                [33mclass[39m=[32m"font-bold text-red-600"[39m
+              [36m>[39m
+                [0mלא תוכל/י[0m
+              [36m</span>[39m
+              [0m לעבוד.[0m
+            [36m</p>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"divide-y divide-slate-200"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"p-4 md:p-6 flex flex-col md:flex-row md:items-center hover:bg-slate-50 transition-colors"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"md:w-1/4 mb-4 md:mb-0"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                [36m>[39m
+                  [0mראשון[0m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"text-sm text-slate-500"[39m
+                [36m>[39m
+                  [0m8/3[0m
+                [36m</div>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"md:w-3/4 flex flex-wrap gap-4"[39m
+              [36m>[39m
+                [36m<label[39m
+                  [33mclass[39m=[32m"flex items-center space-x-3 space-x-reverse p-3 rounded-lg border cursor-pointer transition-all border-slate-200 bg-white hover:border-slate-300 opacity-70 cursor-not-allowed"[39m
+                [36m>[39m
+                  [36m<input[39m
+                    [33mclass[39m=[32m"w-5 h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 focus:ring-offset-2"[39m
+                    [33mdisabled[39m=[32m""[39m
+                    [33mtype[39m=[32m"checkbox"[39m
+                  [36m/>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"text-slate-700"[39m
+                  [36m>[39m
+                    [0mבוקר[0m
+                  [36m</span>[39m
+                [36m</label>[39m
+                [36m<label[39m
+                  [33mclass[39m=[32m"flex items-center sp...
+[90m [2m❯[22m Proxy.waitForWrapper node_modules/@testing-library/dom/dist/wait-for.js:[2m163:27[22m[39m
+[36m [2m❯[22m src/pages/__tests__/ConstraintFormPage.test.tsx:[2m152:15[22m[39m
+    [90m150| [39m        [34mrenderWithRouter[39m([33m<[39m[33mConstraintFormPage[39m [33m/[39m[33m>[39m)[33m;[39m
+    [90m151| [39m
+    [90m152| [39m        [35mawait[39m [34mwaitFor[39m(() [33m=>[39m {
+    [90m   | [39m              [31m^[39m
+    [90m153| [39m            expect(screen.getByText('האילוצים ננעלו ולא ניתן לשנות')).…
+    [90m154| [39m        })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/pages/__tests__/ManagerConstraintsPage.test.tsx[2m > [22mManagerConstraintsPage[2m > [22mrenders ALL employees as rows (even those with no constraints)
+[31m[1mTestingLibraryElementError[22m[39m: Unable to find an element with the text: User One. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"max-w-7xl mx-auto p-4 md:p-6 space-y-6"[39m
+      [33mdir[39m=[32m"rtl"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"flex flex-col md:flex-row justify-between items-start md:items-center gap-4"[39m
+      [36m>[39m
+        [36m<a[39m
+          [33mclass[39m=[32m"text-blue-600 hover:text-blue-800 font-medium"[39m
+          [33mhref[39m=[32m"/dashboard"[39m
+        [36m>[39m
+          [0m→ חזרה ללוח הבקרה[0m
+        [36m</a>[39m
+        [36m<h1[39m
+          [33mclass[39m=[32m"text-2xl font-bold text-slate-800"[39m
+        [36m>[39m
+          [0mאילוצי עובדים לשבוע [0m
+          [0m2026-W11[0m
+        [36m</h1>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex items-center space-x-2 space-x-reverse bg-white rounded-lg shadow-sm border border-slate-200 p-1"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"p-2 hover:bg-slate-100 rounded text-slate-600 transition-colors"[39m
+            [33mtitle[39m=[32m"שבוע הבא"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33mclass[39m=[32m"w-5 h-5"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mstroke[39m=[32m"currentColor"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M9 5l7 7-7 7"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+          [36m</button>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"font-medium px-4 text-slate-700 min-w-[120px] text-center"[39m
+          [36m>[39m
+            [0m2026-W11[0m
+          [36m</span>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"p-2 hover:bg-slate-100 rounded text-slate-600 transition-colors"[39m
+            [33mtitle[39m=[32m"שבוע קודם"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33mclass[39m=[32m"w-5 h-5"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mstroke[39m=[32m"currentColor"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M15 19l-7-7 7-7"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<button[39m
+          [33mclass[39m=[32m"px-4 py-2 font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors flex items-center gap-2 bg-red-600 text-white hover:bg-red-700 focus:ring-red-500"[39m
+          [33mdisabled[39m=[32m""[39m
+        [36m>[39m
+          [0mנעל אילוצים[0m
+        [36m</button>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"bg-white shadow rounded-lg overflow-hidden border border-slate-200"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"overflow-x-auto"[39m
+        [36m>[39m
+          [36m<table[39m
+            [33mclass[39m=[32m"w-full text-sm text-right"[39m
+          [36m>[39m
+            [36m<thead[39m
+              [33mclass[39m=[32m"text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-200"[39m
+            [36m>[39m
+              [36m<tr>[39m
+                [36m<th[39m
+                  [33mclass[39m=[32m"px-6 py-4 font-semibold w-48 sticky right-0 bg-slate-50 z-10 border-l border-slate-200"[39m
+                  [33mscope[39m=[32m"col"[39m
+                [36m>[39m
+                  [0mשם העובד[0m
+                [36m</th>[39m
+                [36m<th[39m
+                  [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                  [33mscope[39m=[32m"col"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                  [36m>[39m
+                    [0mראשון[0m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                  [36m>[39m
+                    [0m8/3[0m
+                  [36m</div>[39m
+                [36m</th>[39m
+                [36m<th[39m
+                  [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                  [33mscope[39m=[32m"col"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                  [36m>[39m
+                    [0mשני[0m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                  [36m>[39m
+                    [0m9/3[0m
+                  [36m</div>[39m
+                [36m</th>[39m
+                [36m<th[39m
+                  [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                  [33mscope[39m=[32m"col"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                  [36m>[39m
+                    [0mשלישי[0m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                  [36m>[39m
+                    [0m10/3[0m
+                  [36m</div>[39m
+                [36m</th>[39m
+                [36m<th[39m
+                  [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                  [33mscope[39m=[32m"col"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                  [36m>[39m
+                    [0mרביעי[0m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                  [36m>[39m
+                    [0m11/3[0m
+                  [36m</div>[39m
+                [36m</th>[39m
+                [36m<th[39m
+                  [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                  [33mscope[39m=[32m"col"[39m
+                [36m>[39m
+                  [...
+
+Ignored nodes: comments, script, style
+[36m<html>[39m
+  [36m<head />[39m
+  [36m<body>[39m
+    [36m<div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"max-w-7xl mx-auto p-4 md:p-6 space-y-6"[39m
+        [33mdir[39m=[32m"rtl"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex flex-col md:flex-row justify-between items-start md:items-center gap-4"[39m
+        [36m>[39m
+          [36m<a[39m
+            [33mclass[39m=[32m"text-blue-600 hover:text-blue-800 font-medium"[39m
+            [33mhref[39m=[32m"/dashboard"[39m
+          [36m>[39m
+            [0m→ חזרה ללוח הבקרה[0m
+          [36m</a>[39m
+          [36m<h1[39m
+            [33mclass[39m=[32m"text-2xl font-bold text-slate-800"[39m
+          [36m>[39m
+            [0mאילוצי עובדים לשבוע [0m
+            [0m2026-W11[0m
+          [36m</h1>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"flex items-center space-x-2 space-x-reverse bg-white rounded-lg shadow-sm border border-slate-200 p-1"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"p-2 hover:bg-slate-100 rounded text-slate-600 transition-colors"[39m
+              [33mtitle[39m=[32m"שבוע הבא"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mclass[39m=[32m"w-5 h-5"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M9 5l7 7-7 7"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"2"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+            [36m</button>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"font-medium px-4 text-slate-700 min-w-[120px] text-center"[39m
+            [36m>[39m
+              [0m2026-W11[0m
+            [36m</span>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"p-2 hover:bg-slate-100 rounded text-slate-600 transition-colors"[39m
+              [33mtitle[39m=[32m"שבוע קודם"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mclass[39m=[32m"w-5 h-5"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M15 19l-7-7 7-7"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"2"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+            [36m</button>[39m
+          [36m</div>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"px-4 py-2 font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors flex items-center gap-2 bg-red-600 text-white hover:bg-red-700 focus:ring-red-500"[39m
+            [33mdisabled[39m=[32m""[39m
+          [36m>[39m
+            [0mנעל אילוצים[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"bg-white shadow rounded-lg overflow-hidden border border-slate-200"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"overflow-x-auto"[39m
+          [36m>[39m
+            [36m<table[39m
+              [33mclass[39m=[32m"w-full text-sm text-right"[39m
+            [36m>[39m
+              [36m<thead[39m
+                [33mclass[39m=[32m"text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-200"[39m
+              [36m>[39m
+                [36m<tr>[39m
+                  [36m<th[39m
+                    [33mclass[39m=[32m"px-6 py-4 font-semibold w-48 sticky right-0 bg-slate-50 z-10 border-l border-slate-200"[39m
+                    [33mscope[39m=[32m"col"[39m
+                  [36m>[39m
+                    [0mשם העובד[0m
+                  [36m</th>[39m
+                  [36m<th[39m
+                    [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                    [33mscope[39m=[32m"col"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                    [36m>[39m
+                      [0mראשון[0m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                    [36m>[39m
+                      [0m8/3[0m
+                    [36m</div>[39m
+                  [36m</th>[39m
+                  [36m<th[39m
+                    [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                    [33mscope[39m=[32m"col"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                    [36m>[39m
+                      [0mשני[0m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                    [36m>[39m
+                      [0m9/3[0m
+                    [36m</div>[39m
+                  [36m</th>[39m
+                  [36m<th[39m
+                    [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                    [33mscope[39m=[32m"col"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                    [36m>[39m
+                      [0mשלישי[0m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                    [36m>[39m
+                      [0m10/3[0m
+                    [36m</div>[39m
+                  [36m</th>[39m
+                  [36m<th[39m
+                    [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                    [33mscope[39m=[32m"col"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                    [36m>[39m
+                      [0mרביעי[0m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                    [36m>[39m
+              ...
+[90m [2m❯[22m Proxy.waitForWrapper node_modules/@testing-library/dom/dist/wait-for.js:[2m163:27[22m[39m
+[36m [2m❯[22m src/pages/__tests__/ManagerConstraintsPage.test.tsx:[2m84:15[22m[39m
+    [90m 82| [39m        [34mrenderWithRouter[39m([33m<[39m[33mManagerConstraintsPage[39m [33m/[39m[33m>[39m)[33m;[39m
+    [90m 83| [39m
+    [90m 84| [39m        [35mawait[39m [34mwaitFor[39m(() [33m=>[39m {
+    [90m   | [39m              [31m^[39m
+    [90m 85| [39m            [34mexpect[39m(screen[33m.[39m[34mgetByText[39m([32m'User One'[39m))[33m.[39m[34mtoBeInTheDocument[39m()[33m;[39m
+    [90m 86| [39m            [34mexpect[39m(screen[33m.[39m[34mgetByText[39m([32m'User Two'[39m))[33m.[39m[34mtoBeInTheDocument[39m()[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/pages/__tests__/ManagerConstraintsPage.test.tsx[2m > [22mManagerConstraintsPage[2m > [22memployees with no constraints show "✓" in green for all cells
+[31m[1mTestingLibraryElementError[22m[39m: Unable to find an element with the text: User Two. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"max-w-7xl mx-auto p-4 md:p-6 space-y-6"[39m
+      [33mdir[39m=[32m"rtl"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"flex flex-col md:flex-row justify-between items-start md:items-center gap-4"[39m
+      [36m>[39m
+        [36m<a[39m
+          [33mclass[39m=[32m"text-blue-600 hover:text-blue-800 font-medium"[39m
+          [33mhref[39m=[32m"/dashboard"[39m
+        [36m>[39m
+          [0m→ חזרה ללוח הבקרה[0m
+        [36m</a>[39m
+        [36m<h1[39m
+          [33mclass[39m=[32m"text-2xl font-bold text-slate-800"[39m
+        [36m>[39m
+          [0mאילוצי עובדים לשבוע [0m
+          [0m2026-W11[0m
+        [36m</h1>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex items-center space-x-2 space-x-reverse bg-white rounded-lg shadow-sm border border-slate-200 p-1"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"p-2 hover:bg-slate-100 rounded text-slate-600 transition-colors"[39m
+            [33mtitle[39m=[32m"שבוע הבא"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33mclass[39m=[32m"w-5 h-5"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mstroke[39m=[32m"currentColor"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M9 5l7 7-7 7"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+          [36m</button>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"font-medium px-4 text-slate-700 min-w-[120px] text-center"[39m
+          [36m>[39m
+            [0m2026-W11[0m
+          [36m</span>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"p-2 hover:bg-slate-100 rounded text-slate-600 transition-colors"[39m
+            [33mtitle[39m=[32m"שבוע קודם"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33mclass[39m=[32m"w-5 h-5"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mstroke[39m=[32m"currentColor"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M15 19l-7-7 7-7"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<button[39m
+          [33mclass[39m=[32m"px-4 py-2 font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors flex items-center gap-2 bg-red-600 text-white hover:bg-red-700 focus:ring-red-500"[39m
+          [33mdisabled[39m=[32m""[39m
+        [36m>[39m
+          [0mנעל אילוצים[0m
+        [36m</button>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"bg-white shadow rounded-lg overflow-hidden border border-slate-200"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"overflow-x-auto"[39m
+        [36m>[39m
+          [36m<table[39m
+            [33mclass[39m=[32m"w-full text-sm text-right"[39m
+          [36m>[39m
+            [36m<thead[39m
+              [33mclass[39m=[32m"text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-200"[39m
+            [36m>[39m
+              [36m<tr>[39m
+                [36m<th[39m
+                  [33mclass[39m=[32m"px-6 py-4 font-semibold w-48 sticky right-0 bg-slate-50 z-10 border-l border-slate-200"[39m
+                  [33mscope[39m=[32m"col"[39m
+                [36m>[39m
+                  [0mשם העובד[0m
+                [36m</th>[39m
+                [36m<th[39m
+                  [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                  [33mscope[39m=[32m"col"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                  [36m>[39m
+                    [0mראשון[0m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                  [36m>[39m
+                    [0m8/3[0m
+                  [36m</div>[39m
+                [36m</th>[39m
+                [36m<th[39m
+                  [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                  [33mscope[39m=[32m"col"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                  [36m>[39m
+                    [0mשני[0m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                  [36m>[39m
+                    [0m9/3[0m
+                  [36m</div>[39m
+                [36m</th>[39m
+                [36m<th[39m
+                  [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                  [33mscope[39m=[32m"col"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                  [36m>[39m
+                    [0mשלישי[0m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                  [36m>[39m
+                    [0m10/3[0m
+                  [36m</div>[39m
+                [36m</th>[39m
+                [36m<th[39m
+                  [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                  [33mscope[39m=[32m"col"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                  [36m>[39m
+                    [0mרביעי[0m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                  [36m>[39m
+                    [0m11/3[0m
+                  [36m</div>[39m
+                [36m</th>[39m
+                [36m<th[39m
+                  [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                  [33mscope[39m=[32m"col"[39m
+                [36m>[39m
+                  [...
+
+Ignored nodes: comments, script, style
+[36m<html>[39m
+  [36m<head />[39m
+  [36m<body>[39m
+    [36m<div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"max-w-7xl mx-auto p-4 md:p-6 space-y-6"[39m
+        [33mdir[39m=[32m"rtl"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex flex-col md:flex-row justify-between items-start md:items-center gap-4"[39m
+        [36m>[39m
+          [36m<a[39m
+            [33mclass[39m=[32m"text-blue-600 hover:text-blue-800 font-medium"[39m
+            [33mhref[39m=[32m"/dashboard"[39m
+          [36m>[39m
+            [0m→ חזרה ללוח הבקרה[0m
+          [36m</a>[39m
+          [36m<h1[39m
+            [33mclass[39m=[32m"text-2xl font-bold text-slate-800"[39m
+          [36m>[39m
+            [0mאילוצי עובדים לשבוע [0m
+            [0m2026-W11[0m
+          [36m</h1>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"flex items-center space-x-2 space-x-reverse bg-white rounded-lg shadow-sm border border-slate-200 p-1"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"p-2 hover:bg-slate-100 rounded text-slate-600 transition-colors"[39m
+              [33mtitle[39m=[32m"שבוע הבא"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mclass[39m=[32m"w-5 h-5"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M9 5l7 7-7 7"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"2"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+            [36m</button>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"font-medium px-4 text-slate-700 min-w-[120px] text-center"[39m
+            [36m>[39m
+              [0m2026-W11[0m
+            [36m</span>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"p-2 hover:bg-slate-100 rounded text-slate-600 transition-colors"[39m
+              [33mtitle[39m=[32m"שבוע קודם"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mclass[39m=[32m"w-5 h-5"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M15 19l-7-7 7-7"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"2"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+            [36m</button>[39m
+          [36m</div>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"px-4 py-2 font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors flex items-center gap-2 bg-red-600 text-white hover:bg-red-700 focus:ring-red-500"[39m
+            [33mdisabled[39m=[32m""[39m
+          [36m>[39m
+            [0mנעל אילוצים[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"bg-white shadow rounded-lg overflow-hidden border border-slate-200"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"overflow-x-auto"[39m
+          [36m>[39m
+            [36m<table[39m
+              [33mclass[39m=[32m"w-full text-sm text-right"[39m
+            [36m>[39m
+              [36m<thead[39m
+                [33mclass[39m=[32m"text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-200"[39m
+              [36m>[39m
+                [36m<tr>[39m
+                  [36m<th[39m
+                    [33mclass[39m=[32m"px-6 py-4 font-semibold w-48 sticky right-0 bg-slate-50 z-10 border-l border-slate-200"[39m
+                    [33mscope[39m=[32m"col"[39m
+                  [36m>[39m
+                    [0mשם העובד[0m
+                  [36m</th>[39m
+                  [36m<th[39m
+                    [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                    [33mscope[39m=[32m"col"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                    [36m>[39m
+                      [0mראשון[0m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                    [36m>[39m
+                      [0m8/3[0m
+                    [36m</div>[39m
+                  [36m</th>[39m
+                  [36m<th[39m
+                    [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                    [33mscope[39m=[32m"col"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                    [36m>[39m
+                      [0mשני[0m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                    [36m>[39m
+                      [0m9/3[0m
+                    [36m</div>[39m
+                  [36m</th>[39m
+                  [36m<th[39m
+                    [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                    [33mscope[39m=[32m"col"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                    [36m>[39m
+                      [0mשלישי[0m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                    [36m>[39m
+                      [0m10/3[0m
+                    [36m</div>[39m
+                  [36m</th>[39m
+                  [36m<th[39m
+                    [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                    [33mscope[39m=[32m"col"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                    [36m>[39m
+                      [0mרביעי[0m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                    [36m>[39m
+              ...
+[90m [2m❯[22m Proxy.waitForWrapper node_modules/@testing-library/dom/dist/wait-for.js:[2m163:27[22m[39m
+[36m [2m❯[22m src/pages/__tests__/ManagerConstraintsPage.test.tsx:[2m94:15[22m[39m
+    [90m 92| [39m        [34mrenderWithRouter[39m([33m<[39m[33mManagerConstraintsPage[39m [33m/[39m[33m>[39m)[33m;[39m
+    [90m 93| [39m
+    [90m 94| [39m        [35mawait[39m [34mwaitFor[39m(() [33m=>[39m {
+    [90m   | [39m              [31m^[39m
+    [90m 95| [39m            [34mexpect[39m(screen[33m.[39m[34mgetByText[39m([32m'User Two'[39m))[33m.[39m[34mtoBeInTheDocument[39m()[33m;[39m
+    [90m 96| [39m        })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/pages/__tests__/ManagerConstraintsPage.test.tsx[2m > [22mManagerConstraintsPage[2m > [22mPrevious week / next week navigation buttons work
+[31m[1mTestingLibraryElementError[22m[39m: Unable to find an element with the text: User One. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"max-w-7xl mx-auto p-4 md:p-6 space-y-6"[39m
+      [33mdir[39m=[32m"rtl"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"flex flex-col md:flex-row justify-between items-start md:items-center gap-4"[39m
+      [36m>[39m
+        [36m<a[39m
+          [33mclass[39m=[32m"text-blue-600 hover:text-blue-800 font-medium"[39m
+          [33mhref[39m=[32m"/dashboard"[39m
+        [36m>[39m
+          [0m→ חזרה ללוח הבקרה[0m
+        [36m</a>[39m
+        [36m<h1[39m
+          [33mclass[39m=[32m"text-2xl font-bold text-slate-800"[39m
+        [36m>[39m
+          [0mאילוצי עובדים לשבוע [0m
+          [0m2026-W11[0m
+        [36m</h1>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex items-center space-x-2 space-x-reverse bg-white rounded-lg shadow-sm border border-slate-200 p-1"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"p-2 hover:bg-slate-100 rounded text-slate-600 transition-colors"[39m
+            [33mtitle[39m=[32m"שבוע הבא"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33mclass[39m=[32m"w-5 h-5"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mstroke[39m=[32m"currentColor"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M9 5l7 7-7 7"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+          [36m</button>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"font-medium px-4 text-slate-700 min-w-[120px] text-center"[39m
+          [36m>[39m
+            [0m2026-W11[0m
+          [36m</span>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"p-2 hover:bg-slate-100 rounded text-slate-600 transition-colors"[39m
+            [33mtitle[39m=[32m"שבוע קודם"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33mclass[39m=[32m"w-5 h-5"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mstroke[39m=[32m"currentColor"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M15 19l-7-7 7-7"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<button[39m
+          [33mclass[39m=[32m"px-4 py-2 font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors flex items-center gap-2 bg-red-600 text-white hover:bg-red-700 focus:ring-red-500"[39m
+          [33mdisabled[39m=[32m""[39m
+        [36m>[39m
+          [0mנעל אילוצים[0m
+        [36m</button>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"bg-white shadow rounded-lg overflow-hidden border border-slate-200"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"overflow-x-auto"[39m
+        [36m>[39m
+          [36m<table[39m
+            [33mclass[39m=[32m"w-full text-sm text-right"[39m
+          [36m>[39m
+            [36m<thead[39m
+              [33mclass[39m=[32m"text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-200"[39m
+            [36m>[39m
+              [36m<tr>[39m
+                [36m<th[39m
+                  [33mclass[39m=[32m"px-6 py-4 font-semibold w-48 sticky right-0 bg-slate-50 z-10 border-l border-slate-200"[39m
+                  [33mscope[39m=[32m"col"[39m
+                [36m>[39m
+                  [0mשם העובד[0m
+                [36m</th>[39m
+                [36m<th[39m
+                  [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                  [33mscope[39m=[32m"col"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                  [36m>[39m
+                    [0mראשון[0m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                  [36m>[39m
+                    [0m8/3[0m
+                  [36m</div>[39m
+                [36m</th>[39m
+                [36m<th[39m
+                  [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                  [33mscope[39m=[32m"col"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                  [36m>[39m
+                    [0mשני[0m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                  [36m>[39m
+                    [0m9/3[0m
+                  [36m</div>[39m
+                [36m</th>[39m
+                [36m<th[39m
+                  [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                  [33mscope[39m=[32m"col"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                  [36m>[39m
+                    [0mשלישי[0m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                  [36m>[39m
+                    [0m10/3[0m
+                  [36m</div>[39m
+                [36m</th>[39m
+                [36m<th[39m
+                  [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                  [33mscope[39m=[32m"col"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                  [36m>[39m
+                    [0mרביעי[0m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                  [36m>[39m
+                    [0m11/3[0m
+                  [36m</div>[39m
+                [36m</th>[39m
+                [36m<th[39m
+                  [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                  [33mscope[39m=[32m"col"[39m
+                [36m>[39m
+                  [...
+
+Ignored nodes: comments, script, style
+[36m<html>[39m
+  [36m<head />[39m
+  [36m<body>[39m
+    [36m<div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"max-w-7xl mx-auto p-4 md:p-6 space-y-6"[39m
+        [33mdir[39m=[32m"rtl"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex flex-col md:flex-row justify-between items-start md:items-center gap-4"[39m
+        [36m>[39m
+          [36m<a[39m
+            [33mclass[39m=[32m"text-blue-600 hover:text-blue-800 font-medium"[39m
+            [33mhref[39m=[32m"/dashboard"[39m
+          [36m>[39m
+            [0m→ חזרה ללוח הבקרה[0m
+          [36m</a>[39m
+          [36m<h1[39m
+            [33mclass[39m=[32m"text-2xl font-bold text-slate-800"[39m
+          [36m>[39m
+            [0mאילוצי עובדים לשבוע [0m
+            [0m2026-W11[0m
+          [36m</h1>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"flex items-center space-x-2 space-x-reverse bg-white rounded-lg shadow-sm border border-slate-200 p-1"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"p-2 hover:bg-slate-100 rounded text-slate-600 transition-colors"[39m
+              [33mtitle[39m=[32m"שבוע הבא"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mclass[39m=[32m"w-5 h-5"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M9 5l7 7-7 7"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"2"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+            [36m</button>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"font-medium px-4 text-slate-700 min-w-[120px] text-center"[39m
+            [36m>[39m
+              [0m2026-W11[0m
+            [36m</span>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"p-2 hover:bg-slate-100 rounded text-slate-600 transition-colors"[39m
+              [33mtitle[39m=[32m"שבוע קודם"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mclass[39m=[32m"w-5 h-5"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M15 19l-7-7 7-7"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"2"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+            [36m</button>[39m
+          [36m</div>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"px-4 py-2 font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors flex items-center gap-2 bg-red-600 text-white hover:bg-red-700 focus:ring-red-500"[39m
+            [33mdisabled[39m=[32m""[39m
+          [36m>[39m
+            [0mנעל אילוצים[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"bg-white shadow rounded-lg overflow-hidden border border-slate-200"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"overflow-x-auto"[39m
+          [36m>[39m
+            [36m<table[39m
+              [33mclass[39m=[32m"w-full text-sm text-right"[39m
+            [36m>[39m
+              [36m<thead[39m
+                [33mclass[39m=[32m"text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-200"[39m
+              [36m>[39m
+                [36m<tr>[39m
+                  [36m<th[39m
+                    [33mclass[39m=[32m"px-6 py-4 font-semibold w-48 sticky right-0 bg-slate-50 z-10 border-l border-slate-200"[39m
+                    [33mscope[39m=[32m"col"[39m
+                  [36m>[39m
+                    [0mשם העובד[0m
+                  [36m</th>[39m
+                  [36m<th[39m
+                    [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                    [33mscope[39m=[32m"col"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                    [36m>[39m
+                      [0mראשון[0m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                    [36m>[39m
+                      [0m8/3[0m
+                    [36m</div>[39m
+                  [36m</th>[39m
+                  [36m<th[39m
+                    [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                    [33mscope[39m=[32m"col"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                    [36m>[39m
+                      [0mשני[0m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                    [36m>[39m
+                      [0m9/3[0m
+                    [36m</div>[39m
+                  [36m</th>[39m
+                  [36m<th[39m
+                    [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                    [33mscope[39m=[32m"col"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                    [36m>[39m
+                      [0mשלישי[0m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                    [36m>[39m
+                      [0m10/3[0m
+                    [36m</div>[39m
+                  [36m</th>[39m
+                  [36m<th[39m
+                    [33mclass[39m=[32m"px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]"[39m
+                    [33mscope[39m=[32m"col"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"font-semibold text-slate-800"[39m
+                    [36m>[39m
+                      [0mרביעי[0m
+                    [36m</div>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"text-slate-500 text-xs mt-1"[39m
+                    [36m>[39m
+              ...
+[90m [2m❯[22m Proxy.waitForWrapper node_modules/@testing-library/dom/dist/wait-for.js:[2m163:27[22m[39m
+[36m [2m❯[22m src/pages/__tests__/ManagerConstraintsPage.test.tsx:[2m106:15[22m[39m
+    [90m104| [39m        [34mrenderWithRouter[39m([33m<[39m[33mManagerConstraintsPage[39m [33m/[39m[33m>[39m)[33m;[39m
+    [90m105| [39m
+    [90m106| [39m        [35mawait[39m [34mwaitFor[39m(() [33m=>[39m {
+    [90m   | [39m              [31m^[39m
+    [90m107| [39m            [34mexpect[39m(screen[33m.[39m[34mgetByText[39m([32m'User One'[39m))[33m.[39m[34mtoBeInTheDocument[39m()[33m;[39m
+    [90m108| [39m        })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/pages/__tests__/ManagerConstraintsPage.test.tsx[2m > [22mManagerConstraintsPage[2m > [22m"נעל אילוצים" button is visible and enabled when not locked
+[31m[1mError[22m: [2mexpect([22m[31melement[31m[2m).toBeEnabled()[22m
+
+Received element is not enabled:
+  [31m<button
+  class="px-4 py-2 font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors flex items-center gap-2 bg-red-600 text-white hover:bg-red-700 focus:ring-red-500"
+  disabled=""
+/>[31m[39m
+[36m [2m❯[22m src/pages/__tests__/ManagerConstraintsPage.test.tsx:[2m128:25[22m[39m
+    [90m126| [39m        const lockBtn = await screen.findByRole('button', { name: /נעל…
+    [90m127| [39m        [34mexpect[39m(lockBtn)[33m.[39m[34mtoBeInTheDocument[39m()[33m;[39m
+    [90m128| [39m        [34mexpect[39m(lockBtn)[33m.[39m[34mtoBeEnabled[39m()[33m;[39m
+    [90m   | [39m                        [31m^[39m
+    [90m129| [39m    })[33m;[39m
+    [90m130| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/pages/__tests__/ManagerConstraintsPage.test.tsx[2m > [22mManagerConstraintsPage[2m > [22mClicking lock button shows confirmation dialog and confirms
+[31m[1mAssertionError[22m: expected "bound " to be called at least once[39m
+[36m [2m❯[22m src/pages/__tests__/ManagerConstraintsPage.test.tsx:[2m141:28[22m[39m
+    [90m139| [39m        fireEvent[33m.[39m[34mclick[39m(lockBtn)[33m;[39m
+    [90m140| [39m
+    [90m141| [39m        [34mexpect[39m(confirmSpy)[33m.[39m[34mtoHaveBeenCalled[39m()[33m;[39m
+    [90m   | [39m                           [31m^[39m
+    [90m142| [39m        expect(api.patch).toHaveBeenCalledWith(expect.stringContaining…
+    [90m143| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/utils/__tests__/weekUtils.test.ts[2m > [22mweekUtils (Frontend)[2m > [22mgetWeekDates[2m > [22mdates are correct for a known weekId (2024-W10)
+[31m[1mAssertionError[22m: expected false to be true // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- true[39m
+[31m+ false[39m
+
+[36m [2m❯[22m src/utils/__tests__/weekUtils.test.ts:[2m45:69[22m[39m
+    [90m 43| [39m            [90m// 2024-W10 is March 3 to March 9[39m
+    [90m 44| [39m            [35mconst[39m dates [33m=[39m [34mgetWeekDates[39m([32m'2024-W10'[39m)[33m;[39m
+    [90m 45| [39m            expect(dates[0].toISOString().startsWith('2024-03-03')).to…
+    [90m   | [39m                                                                    [31m^[39m
+    [90m 46| [39m            expect(dates[6].toISOString().startsWith('2024-03-09')).to…
+    [90m 47| [39m        })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/8]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m3 failed[39m[22m[90m (3)[39m
+[2m      Tests [22m [1m[31m8 failed[39m[22m[2m | [22m[1m[32m14 passed[39m[22m[90m (22)[39m
+[2m   Start at [22m 01:27:22
+[2m   Duration [22m 3.67s[2m (transform 135ms, setup 105ms, import 199ms, tests 5.66s, environment 735ms)[22m
+

@@ -10,7 +10,7 @@ const constraintSchema = z.object({
         date: z.string().or(z.date()).transform(val => new Date(val)),
         shift: z.enum(['morning', 'afternoon', 'night']),
         canWork: z.boolean()
-    }))
+    })).min(1, "Constraints array cannot be empty")
 });
 
 export const submitConstraints = async (req: Request, res: Response) => {
@@ -27,9 +27,9 @@ export const submitConstraints = async (req: Request, res: Response) => {
             });
         }
 
-        // Check if constraints are already locked by a manager
-        const existing = await Constraint.findOne({ userId, weekId });
-        if (existing?.isLocked) {
+        // Check if ANY constraints are already locked by a manager for this week
+        const anyLocked = await Constraint.findOne({ weekId, isLocked: true });
+        if (anyLocked) {
             return res.status(403).json({
                 success: false,
                 message: 'לא ניתן לשנות אילוצים לאחר נעילה'
