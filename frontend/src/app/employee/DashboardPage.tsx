@@ -1,5 +1,5 @@
 import { useAuthStore } from '../../store/authStore';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export default function EmployeeDashboard() {
     const { user, logout } = useAuthStore();
@@ -18,6 +18,9 @@ export default function EmployeeDashboard() {
                         מערכת סידור משמרות
                     </h1>
                     <div className="flex items-center gap-4">
+                        <Link to="/constraints" className="text-blue-600 hover:text-blue-800 font-medium">
+                            הגשת אילוצים
+                        </Link>
                         <span className="text-gray-700">שלום, {user?.name}</span>
                         <button
                             onClick={handleLogout}
