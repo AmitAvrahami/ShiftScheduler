@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
+import mongoose from 'mongoose';
 import { Schedule } from '../models/Schedule';
 import { Notification } from '../models/Notification';
 import { User } from '../models/User';
@@ -10,6 +11,21 @@ import { getWeekDates } from '../utils/weekUtils';
 // ─── Validation ───────────────────────────────────────────────────────────────
 
 const weekIdSchema = z.string().regex(/^\d{4}-W\d{2}$/, 'פורמט weekId לא תקין — נדרש YYYY-Www');
+
+/**
+ * Zod schema for the PATCH /shifts body.
+ * Each shift entry must have an ISO date string, a valid shift type,
+ * and an array of valid MongoDB ObjectId strings for employees.
+ */
+const updateShiftsBodySchema = z.object({
+    shifts: z.array(
+        z.object({
+            date: z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}/)),
+            type: z.enum(['morning', 'afternoon', 'night']),
+            employees: z.array(z.string()),
+        })
+    ),
+});
 
 // ─── Controller Functions ─────────────────────────────────────────────────────
 
@@ -203,6 +219,104 @@ export const getMySchedule = async (req: Request, res: Response) => {
             return res.status(400).json({ success: false, message: error.errors[0]?.message });
         }
         console.error('Error fetching my schedule:', error);
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * PATCH /api/schedules/:weekId/shifts  [MANAGER ONLY]
+ *
+ * Replaces the shifts array of an existing schedule document.
+ * Used by the drag-and-drop schedule editor to persist manual changes.
+ *
+ * Validation flow:
+ * ```mermaid
+ * graph TD
+ *   A[Validate weekId] --> B{Schedule exists?}
+ *   B -->|No| C[404 Not Found]
+ *   B -->|Yes| D{isPublished?}
+ *   D -->|Yes| E[400 Cannot edit published]
+ *   D -->|No| F{All employee IDs valid?}
+ *   F -->|No| G[400 Invalid employee IDs]
+ *   F -->|Yes| H[Replace shifts and save]
+ *   H --> I[200 Updated schedule]
+ * ```
+ *
+ * @param req - { params: { weekId }, body: { shifts: Array<{ date, type, employees[] }> } }
+ * @param res - Updated and populated ISchedule document
+ */
+export const updateShifts = async (req: Request, res: Response) => {
+    try {
+        const { weekId } = req.params;
+        weekIdSchema.parse(weekId);
+
+        // Validate request body structure
+        const { shifts } = updateShiftsBodySchema.parse(req.body);
+
+        const weekStartDate = getWeekDates(weekId)[0];
+        const schedule = await Schedule.findOne({ weekStartDate });
+
+        if (!schedule) {
+            return res.status(404).json({
+                success: false,
+                message: 'לא נמצא סידור לשבוע זה',
+            });
+        }
+
+        // Guard: cannot edit a published schedule
+        if (schedule.isPublished) {
+            return res.status(400).json({
+                success: false,
+                message: 'לא ניתן לערוך סידור שכבר פורסם',
+            });
+        }
+
+        // Validate every employee ObjectId exists in Users collection
+        const allEmployeeIds = shifts.flatMap(shift => shift.employees);
+        const uniqueEmployeeIds = [...new Set(allEmployeeIds)];
+
+        for (const empId of uniqueEmployeeIds) {
+            if (!mongoose.isValidObjectId(empId)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `מזהה עובד לא תקין: ${empId}`,
+                });
+            }
+        }
+
+        if (uniqueEmployeeIds.length > 0) {
+            const existingCount = await User.countDocuments({
+                _id: { $in: uniqueEmployeeIds },
+            });
+            if (existingCount !== uniqueEmployeeIds.length) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'אחד או יותר מהעובדים לא נמצאו במערכת',
+                });
+            }
+        }
+
+        // Replace shifts and persist
+        schedule.shifts = shifts.map(shift => ({
+            date: new Date(shift.date),
+            type: shift.type,
+            employees: shift.employees.map(id => new mongoose.Types.ObjectId(id)),
+        }));
+
+        await schedule.save();
+
+        const updatedSchedule = await Schedule.findById(schedule._id)
+            .populate('shifts.employees', 'name');
+
+        return res.status(200).json({ success: true, data: updatedSchedule });
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({
+                success: false,
+                message: error.errors[0]?.message ?? 'נתונים לא תקינים',
+            });
+        }
+        console.error('Error updating shifts:', error);
         return res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

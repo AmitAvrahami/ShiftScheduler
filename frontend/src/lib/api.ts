@@ -1,5 +1,18 @@
 import axios from 'axios';
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+/** Payload shape for saving draft schedule edits */
+export interface SaveShiftsPayload {
+    shifts: {
+        date: string;
+        type: 'morning' | 'afternoon' | 'night';
+        employees: string[];
+    }[];
+}
+
+// ─── Axios Instance ───────────────────────────────────────────────────────────
+
 const api = axios.create({
     baseURL: 'http://localhost:5001/api',
     headers: {
@@ -31,7 +44,7 @@ api.interceptors.response.use(
 export const authAPI = {
     login: (email: string, password: string) =>
         api.post('/auth/login', { email, password }),
-    register: (data: any) =>
+    register: (data: unknown) =>
         api.post('/auth/register', data),
     getMe: () =>
         api.get('/auth/me'),
@@ -46,6 +59,20 @@ export const scheduleAPI = {
         api.patch(`/schedules/${weekId}/publish`),
     getMySchedule: (weekId: string) =>
         api.get(`/schedules/${weekId}/my`),
+    /** Persists drag-and-drop edits made by the manager. */
+    saveShifts: (weekId: string, payload: SaveShiftsPayload) =>
+        api.patch(`/schedules/${weekId}/shifts`, payload),
+};
+
+export const usersAPI = {
+    /** Fetches all active users — manager only. */
+    getAll: () => api.get('/users'),
+};
+
+export const constraintAPI = {
+    /** Returns all employee constraints for a given week — manager only. */
+    getWeekConstraints: (weekId: string) =>
+        api.get(`/constraints/week/${weekId}`),
 };
 
 export const notificationAPI = {
@@ -56,4 +83,3 @@ export const notificationAPI = {
 };
 
 export default api;
-

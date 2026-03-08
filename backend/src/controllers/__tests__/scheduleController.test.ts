@@ -252,4 +252,152 @@ describe('Schedule Controller', () => {
             expect(Array.isArray(res.body.data)).toBe(true);
         });
     });
+
+    // ─── PATCH /api/schedules/:weekId/shifts ──────────────────────────────────
+
+    describe('PATCH /api/schedules/:weekId/shifts', () => {
+        /**
+         * Helper: generate a draft schedule and return its first shift data
+         * so tests can build valid replacement payloads.
+         */
+        const generateAndGetSchedule = async () => {
+            const genRes = await request(app)
+                .post('/api/schedules/generate')
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send({ weekId: TEST_WEEK_ID });
+            return genRes.body.data.schedule;
+        };
+
+        it('manager can replace shifts successfully and receives 200', async () => {
+            const generatedSchedule = await generateAndGetSchedule();
+
+            // Build a minimal shifts payload using the first shift's employees
+            const firstShift = generatedSchedule.shifts[0];
+            const payload = {
+                shifts: [
+                    {
+                        date: firstShift.date,
+                        type: firstShift.type,
+                        employees: firstShift.employees.map((e: { _id: string }) => e._id),
+                    },
+                ],
+            };
+
+            const res = await request(app)
+                .patch(`/api/schedules/${TEST_WEEK_ID}/shifts`)
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send(payload);
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(res.body.data.shifts).toHaveLength(1);
+        });
+
+        it('manager can set shifts to empty array (clear schedule)', async () => {
+            await generateAndGetSchedule();
+
+            const res = await request(app)
+                .patch(`/api/schedules/${TEST_WEEK_ID}/shifts`)
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send({ shifts: [] });
+
+            expect(res.status).toBe(200);
+            expect(res.body.data.shifts).toHaveLength(0);
+        });
+
+        it('returns 403 if called by employee', async () => {
+            await generateAndGetSchedule();
+
+            const res = await request(app)
+                .patch(`/api/schedules/${TEST_WEEK_ID}/shifts`)
+                .set('Authorization', `Bearer ${employeeToken}`)
+                .send({ shifts: [] });
+
+            expect(res.status).toBe(403);
+        });
+
+        it('returns 401 if not authenticated', async () => {
+            const res = await request(app)
+                .patch(`/api/schedules/${TEST_WEEK_ID}/shifts`)
+                .send({ shifts: [] });
+
+            expect(res.status).toBe(401);
+        });
+
+        it('returns 400 if schedule is already published', async () => {
+            await generateAndGetSchedule();
+            await Schedule.updateOne({}, { isPublished: true });
+
+            const res = await request(app)
+                .patch(`/api/schedules/${TEST_WEEK_ID}/shifts`)
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send({ shifts: [] });
+
+            expect(res.status).toBe(400);
+            expect(res.body.message).toBe('לא ניתן לערוך סידור שכבר פורסם');
+        });
+
+        it('returns 404 if no schedule found for weekId', async () => {
+            const res = await request(app)
+                .patch('/api/schedules/2026-W99/shifts')
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send({ shifts: [] });
+
+            expect(res.status).toBe(404);
+            expect(res.body.message).toBe('לא נמצא סידור לשבוע זה');
+        });
+
+        it('returns 400 for invalid weekId format', async () => {
+            const res = await request(app)
+                .patch('/api/schedules/bad-id/shifts')
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send({ shifts: [] });
+
+            expect(res.status).toBe(400);
+        });
+
+        it('returns 400 if an employee ObjectId is not a valid MongoDB id', async () => {
+            await generateAndGetSchedule();
+
+            const payload = {
+                shifts: [
+                    {
+                        date: new Date().toISOString(),
+                        type: 'morning',
+                        employees: ['not-a-valid-objectid'],
+                    },
+                ],
+            };
+
+            const res = await request(app)
+                .patch(`/api/schedules/${TEST_WEEK_ID}/shifts`)
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send(payload);
+
+            expect(res.status).toBe(400);
+        });
+
+        it('returns 400 if an employee ObjectId does not exist in Users collection', async () => {
+            await generateAndGetSchedule();
+
+            const nonExistentId = new mongoose.Types.ObjectId().toString();
+            const payload = {
+                shifts: [
+                    {
+                        date: new Date().toISOString(),
+                        type: 'morning',
+                        employees: [nonExistentId],
+                    },
+                ],
+            };
+
+            const res = await request(app)
+                .patch(`/api/schedules/${TEST_WEEK_ID}/shifts`)
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send(payload);
+
+            expect(res.status).toBe(400);
+            expect(res.body.message).toBe('אחד או יותר מהעובדים לא נמצאו במערכת');
+        });
+    });
 });
