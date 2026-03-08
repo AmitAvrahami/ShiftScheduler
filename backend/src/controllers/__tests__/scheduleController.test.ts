@@ -1,0 +1,255 @@
+import request from 'supertest';
+import express from 'express';
+import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
+import scheduleRoutes from '../../routes/schedule.routes';
+import { User } from '../../models/User';
+import { Schedule } from '../../models/Schedule';
+import { Notification } from '../../models/Notification';
+
+const app = express();
+app.use(express.json());
+app.use('/api/schedules', scheduleRoutes);
+
+const generateToken = (userId: string, role: string) =>
+    jwt.sign({ userId, role }, process.env.JWT_SECRET || 'secret', { expiresIn: '1h' });
+
+describe('Schedule Controller', () => {
+    const TEST_WEEK_ID = '2026-W20'; // Choose a future week to avoid deadline issues
+
+    let managerToken: string;
+    let employeeToken: string;
+    let managerId: mongoose.Types.ObjectId;
+    let employeeId: mongoose.Types.ObjectId;
+
+    beforeEach(async () => {
+        const manager = await User.create({
+            name: 'Manager',
+            email: 'manager@test.com',
+            password: 'pw',
+            role: 'manager',
+            isActive: true,
+        });
+        managerId = manager._id as mongoose.Types.ObjectId;
+        managerToken = generateToken(managerId.toString(), 'manager');
+
+        // Create several employees so the algorithm has enough people to fill shifts
+        const empUsers = await User.create([
+            { name: 'Emp1', email: 'emp1@test.com', password: 'pw', role: 'employee', isActive: true },
+            { name: 'Emp2', email: 'emp2@test.com', password: 'pw', role: 'employee', isActive: true },
+            { name: 'Emp3', email: 'emp3@test.com', password: 'pw', role: 'employee', isActive: true },
+            { name: 'Emp4', email: 'emp4@test.com', password: 'pw', role: 'employee', isActive: true },
+        ]);
+        employeeId = empUsers[0]._id as mongoose.Types.ObjectId;
+        employeeToken = generateToken(employeeId.toString(), 'employee');
+    });
+
+    // ─── POST /api/schedules/generate ─────────────────────────────────────────
+
+    describe('POST /api/schedules/generate', () => {
+        it('returns 200 with schedule and warnings for manager', async () => {
+            const res = await request(app)
+                .post('/api/schedules/generate')
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send({ weekId: TEST_WEEK_ID });
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(res.body.data.schedule).toBeDefined();
+            expect(res.body.data.schedule.shifts).toHaveLength(21);
+            expect(Array.isArray(res.body.data.warnings)).toBe(true);
+        });
+
+        it('returns 403 if called by employee', async () => {
+            const res = await request(app)
+                .post('/api/schedules/generate')
+                .set('Authorization', `Bearer ${employeeToken}`)
+                .send({ weekId: TEST_WEEK_ID });
+
+            expect(res.status).toBe(403);
+        });
+
+        it('returns 401 if not authenticated', async () => {
+            const res = await request(app)
+                .post('/api/schedules/generate')
+                .send({ weekId: TEST_WEEK_ID });
+
+            expect(res.status).toBe(401);
+        });
+
+        it('returns 400 if schedule is already published', async () => {
+            // Generate first
+            await request(app)
+                .post('/api/schedules/generate')
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send({ weekId: TEST_WEEK_ID });
+
+            // Publish it manually
+            await Schedule.updateOne({}, { isPublished: true });
+
+            // Try to generate again
+            const res = await request(app)
+                .post('/api/schedules/generate')
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send({ weekId: TEST_WEEK_ID });
+
+            expect(res.status).toBe(400);
+            expect(res.body.message).toBe('הסידור כבר פורסם ולא ניתן לשנות');
+        });
+
+        it('can regenerate schedule if not yet published', async () => {
+            await request(app)
+                .post('/api/schedules/generate')
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send({ weekId: TEST_WEEK_ID });
+
+            const res = await request(app)
+                .post('/api/schedules/generate')
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send({ weekId: TEST_WEEK_ID });
+
+            expect(res.status).toBe(200);
+        });
+
+        it('returns 400 for invalid weekId format', async () => {
+            const res = await request(app)
+                .post('/api/schedules/generate')
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send({ weekId: 'not-a-weekid' });
+
+            expect(res.status).toBe(400);
+        });
+    });
+
+    // ─── GET /api/schedules/:weekId ────────────────────────────────────────────
+
+    describe('GET /api/schedules/:weekId', () => {
+        it('manager can see unpublished schedule', async () => {
+            await request(app)
+                .post('/api/schedules/generate')
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send({ weekId: TEST_WEEK_ID });
+
+            const res = await request(app)
+                .get(`/api/schedules/${TEST_WEEK_ID}`)
+                .set('Authorization', `Bearer ${managerToken}`);
+
+            expect(res.status).toBe(200);
+            expect(res.body.data.isPublished).toBe(false);
+        });
+
+        it('employee receives 404 if schedule not published', async () => {
+            await request(app)
+                .post('/api/schedules/generate')
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send({ weekId: TEST_WEEK_ID });
+
+            const res = await request(app)
+                .get(`/api/schedules/${TEST_WEEK_ID}`)
+                .set('Authorization', `Bearer ${employeeToken}`);
+
+            expect(res.status).toBe(404);
+            expect(res.body.message).toBe('הסידור טרם פורסם');
+        });
+
+        it('employee can see published schedule', async () => {
+            await request(app)
+                .post('/api/schedules/generate')
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send({ weekId: TEST_WEEK_ID });
+
+            await request(app)
+                .patch(`/api/schedules/${TEST_WEEK_ID}/publish`)
+                .set('Authorization', `Bearer ${managerToken}`);
+
+            const res = await request(app)
+                .get(`/api/schedules/${TEST_WEEK_ID}`)
+                .set('Authorization', `Bearer ${employeeToken}`);
+
+            expect(res.status).toBe(200);
+            expect(res.body.data.isPublished).toBe(true);
+        });
+
+        it('returns 404 if no schedule exists for weekId', async () => {
+            const res = await request(app)
+                .get('/api/schedules/2026-W99')
+                .set('Authorization', `Bearer ${managerToken}`);
+
+            expect(res.status).toBe(404);
+        });
+    });
+
+    // ─── PATCH /api/schedules/:weekId/publish ─────────────────────────────────
+
+    describe('PATCH /api/schedules/:weekId/publish', () => {
+        it('sets isPublished=true and creates notifications for active users', async () => {
+            await request(app)
+                .post('/api/schedules/generate')
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send({ weekId: TEST_WEEK_ID });
+
+            const res = await request(app)
+                .patch(`/api/schedules/${TEST_WEEK_ID}/publish`)
+                .set('Authorization', `Bearer ${managerToken}`);
+
+            expect(res.status).toBe(200);
+            expect(res.body.data.isPublished).toBe(true);
+
+            // Notifications should exist for all active users
+            const notifications = await Notification.find({ weekId: TEST_WEEK_ID });
+            const totalActiveUsers = await User.countDocuments({ isActive: true });
+            expect(notifications.length).toBe(totalActiveUsers);
+        });
+
+        it('returns 403 if called by employee', async () => {
+            const res = await request(app)
+                .patch(`/api/schedules/${TEST_WEEK_ID}/publish`)
+                .set('Authorization', `Bearer ${employeeToken}`);
+
+            expect(res.status).toBe(403);
+        });
+
+        it('returns 404 if no schedule for weekId', async () => {
+            const res = await request(app)
+                .patch('/api/schedules/2026-W99/publish')
+                .set('Authorization', `Bearer ${managerToken}`);
+
+            expect(res.status).toBe(404);
+        });
+    });
+
+    // ─── GET /api/schedules/:weekId/my ────────────────────────────────────────
+
+    describe('GET /api/schedules/:weekId/my', () => {
+        it('employee receives 404 if schedule not published', async () => {
+            await request(app)
+                .post('/api/schedules/generate')
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send({ weekId: TEST_WEEK_ID });
+
+            const res = await request(app)
+                .get(`/api/schedules/${TEST_WEEK_ID}/my`)
+                .set('Authorization', `Bearer ${employeeToken}`);
+
+            expect(res.status).toBe(404);
+        });
+
+        it('returns my shifts after publish', async () => {
+            await request(app)
+                .post('/api/schedules/generate')
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send({ weekId: TEST_WEEK_ID });
+
+            await request(app)
+                .patch(`/api/schedules/${TEST_WEEK_ID}/publish`)
+                .set('Authorization', `Bearer ${managerToken}`);
+
+            const res = await request(app)
+                .get(`/api/schedules/${TEST_WEEK_ID}/my`)
+                .set('Authorization', `Bearer ${employeeToken}`);
+
+            expect(res.status).toBe(200);
+            expect(Array.isArray(res.body.data)).toBe(true);
+        });
+    });
+});

@@ -37,4 +37,23 @@ export const authAPI = {
         api.get('/auth/me'),
 };
 
+export const scheduleAPI = {
+    generate: (weekId: string) =>
+        api.post('/schedules/generate', { weekId }),
+    getSchedule: (weekId: string) =>
+        api.get(`/schedules/${weekId}`),
+    publish: (weekId: string) =>
+        api.patch(`/schedules/${weekId}/publish`),
+    getMySchedule: (weekId: string) =>
+        api.get(`/schedules/${weekId}/my`),
+};
+
+export const notificationAPI = {
+    getAll: () =>
+        api.get('/notifications'),
+    markAsRead: (id: string) =>
+        api.patch(`/notifications/${id}/read`),
+};
+
 export default api;
+

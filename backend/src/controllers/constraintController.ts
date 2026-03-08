@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { Constraint } from '../models/Constraint';
-import { isDeadlinePassed } from '../utils/weekUtils';
+import { Schedule } from '../models/Schedule';
+import { isDeadlinePassed, getWeekDates } from '../utils/weekUtils';
 
 // Define the incoming schema for validation
 const constraintSchema = z.object({
@@ -24,6 +25,16 @@ export const submitConstraints = async (req: Request, res: Response) => {
             return res.status(403).json({
                 success: false,
                 message: 'עבר מועד הגשת האילוצים לשבוע זה (יום שני 23:59)'
+            });
+        }
+
+        // Check if a published schedule already exists for this week
+        const weekStartDate = getWeekDates(weekId)[0];
+        const publishedSchedule = await Schedule.findOne({ weekStartDate, isPublished: true });
+        if (publishedSchedule) {
+            return res.status(400).json({
+                success: false,
+                message: 'לא ניתן להגיש אילוצים לשבוע זה - הסידור כבר פורסם'
             });
         }
 

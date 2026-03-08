@@ -24,6 +24,7 @@ export default function ConstraintFormPage() {
     const [dates, setDates] = useState<Date[]>([]);
     const [constraints, setConstraints] = useState<ConstraintEntry[]>([]);
     const [isLocked, setIsLocked] = useState(false);
+    const [isSchedulePublished, setIsSchedulePublished] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
@@ -43,18 +44,25 @@ export default function ConstraintFormPage() {
     const fetchMyConstraints = async () => {
         setIsLoading(true);
         try {
-            const res = await api.get(`/constraints/my/${weekId}`);
-            if (res.data.data) {
-                setConstraints(res.data.data.constraints.map((c: any) => ({
+            const [constraintsRes, scheduleRes] = await Promise.allSettled([
+                api.get(`/constraints/my/${weekId}`),
+                api.get(`/schedules/${weekId}`),
+            ]);
+
+            if (constraintsRes.status === 'fulfilled' && constraintsRes.value.data.data) {
+                setConstraints(constraintsRes.value.data.data.constraints.map((c: any) => ({
                     date: new Date(c.date).toISOString(),
                     shift: c.shift,
                     canWork: c.canWork
                 })));
-                setIsLocked(res.data.data.isLocked);
+                setIsLocked(constraintsRes.value.data.data.isLocked);
             } else {
                 setConstraints([]);
                 setIsLocked(false);
             }
+
+            // If schedule exists and is published (200 response), block the form
+            setIsSchedulePublished(scheduleRes.status === 'fulfilled');
         } catch (error) {
             console.error('Failed to fetch constraints', error);
             setMessage({ text: 'שגיאה בטעינת אילוצים', type: 'error' });
@@ -174,9 +182,18 @@ export default function ConstraintFormPage() {
                 </div>
             )}
 
+            {isSchedulePublished && (
+                <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg flex items-center space-x-2 space-x-reverse">
+                    <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                    </svg>
+                    <span className="font-medium">לא ניתן להגיש אילוצים לשבוע זה - הסידור כבר פורסם</span>
+                </div>
+            )}
+
             {isLoading && dates.length === 0 ? (
                 <div className="text-center py-10">טוען...</div>
-            ) : (
+            ) : isSchedulePublished ? null : (
                 <form onSubmit={handleSubmit} className="bg-white shadow rounded-lg overflow-hidden border border-slate-200">
                     <div className="p-4 bg-slate-50 border-b border-slate-200">
                         <p className="text-sm text-slate-600">
