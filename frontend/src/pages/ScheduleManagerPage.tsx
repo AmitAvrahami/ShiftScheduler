@@ -161,18 +161,19 @@ function EmployeeCard({
 
     return (
         <div
-            ref={isDragOverlay ? undefined : setNodeRef}
+            ref={isDragOverlay || isPublished ? undefined : setNodeRef}
             style={style}
             className={`
                 flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium
-                select-none cursor-grab active:cursor-grabbing transition-all
+                select-none transition-all
+                ${!isPublished ? 'cursor-grab active:cursor-grabbing' : ''}
                 ${hasConstraint
                     ? 'bg-red-100 text-red-800 border border-red-300'
                     : 'bg-indigo-100 text-indigo-800 border border-indigo-200 hover:bg-indigo-200'
                 }
                 ${isDragging && !isDragOverlay ? 'opacity-40 scale-95' : 'opacity-100'}
             `}
-            {...(isDragOverlay ? {} : { ...attributes, ...listeners })}
+            {...(isDragOverlay || isPublished ? {} : { ...attributes, ...listeners })}
             title={hasConstraint ? 'לעובד זה יש אילוץ למשמרת זו' : undefined}
         >
             {/* Drag handle */}
@@ -458,6 +459,7 @@ export default function ScheduleManagerPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
+    const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
     const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
     const [warnings, setWarnings] = useState<string[]>([]);
 
@@ -493,15 +495,13 @@ export default function ScheduleManagerPage() {
         }
     }, [weekId]);
 
-    // ── Load data for selected week ────────────────────────────────────────────
-    useEffect(() => {
-        loadWeekData();
-    }, [weekId]);
-
     /** Fetches schedule, employees list, and constraints in parallel. */
     const loadWeekData = useCallback(async () => {
         setIsLoadingSchedule(true);
         setHistory([]);
+        setSchedule(null);
+        setEditorShifts([]);
+        setOriginalShifts([]);
 
         try {
             const [scheduleRes, usersRes, constraintsRes] = await Promise.allSettled([
@@ -524,6 +524,8 @@ export default function ScheduleManagerPage() {
 
                 const constraintMap: ConstraintMap = {};
                 rawConstraints.forEach(entry => {
+                    if (!entry.userId) return; // Skip if userId is null or undefined (e.g. deleted user)
+
                     const userId = typeof entry.userId === 'object'
                         ? entry.userId._id
                         : entry.userId;
@@ -539,6 +541,8 @@ export default function ScheduleManagerPage() {
             }
 
             // ── Schedule ─────────────────────────────────────────────────────
+            // 200 → load into editor (works for both draft and published schedules)
+            // non-200 (e.g. 404) → scheduleRes.status === 'rejected' → show empty state
             if (scheduleRes.status === 'fulfilled') {
                 const loadedSchedule: ScheduleData = scheduleRes.value.data.data;
                 setSchedule(loadedSchedule);
@@ -546,6 +550,7 @@ export default function ScheduleManagerPage() {
                 setEditorShifts(normalised);
                 setOriginalShifts(cloneShifts(normalised));
             } else {
+                // 404 or any error → show empty state
                 setSchedule(null);
                 setEditorShifts([]);
                 setOriginalShifts([]);
@@ -554,6 +559,14 @@ export default function ScheduleManagerPage() {
             setIsLoadingSchedule(false);
         }
     }, [weekId]);
+
+    // ── Load data for selected week ────────────────────────────────────────────
+    // Runs on mount and every time weekId changes.
+    // loadWeekData is memoised with weekId as its dep, so adding it here is safe
+    // and satisfies the exhaustive-deps rule without triggering infinite loops.
+    useEffect(() => {
+        loadWeekData();
+    }, [weekId, loadWeekData]);
 
     // ── Toast helper ──────────────────────────────────────────────────────────
     const showToast = useCallback((text: string, type: 'success' | 'error') => {
@@ -577,7 +590,9 @@ export default function ScheduleManagerPage() {
     };
 
     // ── Generate schedule ─────────────────────────────────────────────────────
-    const handleGenerate = async () => {
+
+    /** Runs the actual generation API call, regardless of whether a schedule already exists. */
+    const doGenerate = async () => {
         setIsGenerating(true);
         setWarnings([]);
         try {
@@ -596,6 +611,15 @@ export default function ScheduleManagerPage() {
         } finally {
             setIsGenerating(false);
         }
+    };
+
+    /** Guards generation: shows confirm dialog if a draft schedule already exists. */
+    const handleGenerate = async () => {
+        if (hasSchedule && !isPublished) {
+            setShowRegenerateConfirm(true);
+            return;
+        }
+        await doGenerate();
     };
 
     // ── Save draft shifts ─────────────────────────────────────────────────────
@@ -951,6 +975,7 @@ export default function ScheduleManagerPage() {
                         <button
                             onClick={handleGenerate}
                             disabled={isGenerating || isPublished || isLoadingSchedule}
+                            title={isPublished ? 'הסידור כבר פורסם לשבוע זה' : undefined}
                             className="px-4 py-2 text-sm bg-indigo-600 text-white font-medium rounded-lg shadow-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                             {isGenerating ? (
@@ -960,41 +985,50 @@ export default function ScheduleManagerPage() {
                             ) : 'צור סידור'}
                         </button>
 
-                        {/* Save */}
-                        <button
-                            onClick={handleSave}
-                            disabled={!isDirty || isSaving || isPublished || !hasSchedule}
-                            className={`px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition-all
-                                ${isDirty && !isPublished && hasSchedule
-                                    ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200'
-                                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                }
-                                disabled:opacity-50 disabled:cursor-not-allowed
-                            `}
-                        >
-                            {isSaving ? (
-                                <span className="flex items-center gap-2">
-                                    <span className="animate-spin">⟳</span> שומר...
-                                </span>
-                            ) : (
-                                <span className="flex items-center gap-1.5">
-                                    💾 שמור שינויים
-                                    {isDirty && <span className="w-2 h-2 rounded-full bg-blue-300 animate-pulse inline-block" />}
-                                </span>
-                            )}
-                        </button>
+                        {/* Save — hidden when published */}
+                        {!isPublished && (
+                            <button
+                                onClick={handleSave}
+                                disabled={!isDirty || isSaving || !hasSchedule}
+                                className={`px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition-all
+                                    ${isDirty && hasSchedule
+                                        ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200'
+                                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    }
+                                    disabled:opacity-50 disabled:cursor-not-allowed
+                                `}
+                            >
+                                {isSaving ? (
+                                    <span className="flex items-center gap-2">
+                                        <span className="animate-spin">⟳</span> שומר...
+                                    </span>
+                                ) : (
+                                    <span className="flex items-center gap-1.5">
+                                        💾 שמור שינויים
+                                        {isDirty && <span className="w-2 h-2 rounded-full bg-blue-300 animate-pulse inline-block" />}
+                                    </span>
+                                )}
+                            </button>
+                        )}
 
-                        {/* Publish */}
+                        {/* Publish — shows "✓ הסידור פורסם" (green, disabled) when already published */}
                         <button
                             onClick={() => setShowConfirm(true)}
                             disabled={!hasSchedule || isPublished || isPublishing || isDirty || isLoadingSchedule}
-                            className="px-4 py-2 text-sm bg-green-600 text-white font-medium rounded-lg shadow-sm hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            title={isDirty ? 'יש שינויים שלא נשמרו — שמור תחילה' : undefined}
+                            className={`px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition-colors
+                                ${isPublished
+                                    ? 'bg-green-600 text-white cursor-default opacity-90'
+                                    : 'bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed'
+                                }
+                            `}
+                            title={isDirty && !isPublished ? 'יש שינויים שלא נשמרו — שמור תחילה' : undefined}
                         >
                             {isPublishing ? (
                                 <span className="flex items-center gap-2">
                                     <span className="animate-spin">⟳</span> מפרסם...
                                 </span>
+                            ) : isPublished ? (
+                                '✓ הסידור פורסם'
                             ) : 'פרסם סידור'}
                         </button>
                     </div>
@@ -1163,6 +1197,35 @@ export default function ScheduleManagerPage() {
                     onConfirm={handleConstraintConfirm}
                     onCancel={() => setPendingDrop(null)}
                 />
+            )}
+
+            {/* ── Regenerate confirmation dialog ─────────────────────────────── */}
+            {showRegenerateConfirm && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4" dir="rtl">
+                        <h2 className="text-lg font-bold text-gray-800">יצירת סידור מחדש</h2>
+                        <p className="text-gray-600 text-sm">
+                            קיים סידור לשבוע זה. ליצור מחדש?
+                        </p>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={() => setShowRegenerateConfirm(false)}
+                                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+                            >
+                                ביטול
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    setShowRegenerateConfirm(false);
+                                    await doGenerate();
+                                }}
+                                className="px-4 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg font-medium transition-colors"
+                            >
+                                כן, צור מחדש
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* ── Publish confirmation dialog ────────────────────────────────── */}
