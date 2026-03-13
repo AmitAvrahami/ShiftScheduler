@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../lib/api';
-import { getCurrentWeekId, getWeekDates, getWeekId } from '../utils/weekUtils';
+import { getCurrentWeekId, getWeekDates, getWeekId, getWeekNumber, formatWeekDateRange } from '../utils/weekUtils';
 
 const DAYS_HEBREW = [
     'ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'
@@ -43,6 +43,7 @@ export default function ManagerConstraintsPage() {
     const [displayRows, setDisplayRows] = useState<DisplayRow[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isLocking, setIsLocking] = useState(false);
+    const [isUnlocking, setIsUnlocking] = useState(false);
     const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
     useEffect(() => {
@@ -115,7 +116,7 @@ export default function ManagerConstraintsPage() {
     };
 
     const handleLock = async () => {
-        if (!window.confirm(`האם אתה בטוח שברצונך לנעול את האילוצים לשבוע ${weekId}? לאחר הנעילה, עובדים לא יוכלו לשנות את האילוצים שלהם.`)) {
+        if (!window.confirm(`האם אתה בטוח שברצונך לנעול את האילוצים לשבוע ${getWeekNumber(weekId)} (${formatWeekDateRange(weekId)})? לאחר הנעילה, עובדים לא יוכלו לשנות את האילוצים שלהם.`)) {
             return;
         }
 
@@ -131,6 +132,26 @@ export default function ManagerConstraintsPage() {
             setMessage({ text: 'שגיאה בנעילת האילוצים', type: 'error' });
         } finally {
             setIsLocking(false);
+        }
+    };
+
+    const handleUnlock = async () => {
+        if (!window.confirm(`האם לבטל את נעילת האילוצים לשבוע ${getWeekNumber(weekId)} (${formatWeekDateRange(weekId)})? עובדים יוכלו לשנות את האילוצים שלהם שוב.`)) {
+            return;
+        }
+
+        setIsUnlocking(true);
+        try {
+            const res = await api.patch(`/constraints/unlock/${weekId}`);
+            if (res.data.success) {
+                setMessage({ text: 'הנעילה הוסרה — עובדים יכולים כעת לעדכן אילוצים', type: 'success' });
+                setDisplayRows(prev => prev.map(row => ({ ...row, isLocked: false })));
+            }
+        } catch (error) {
+            console.error('Unlock error:', error);
+            setMessage({ text: 'שגיאה בביטול נעילת האילוצים', type: 'error' });
+        } finally {
+            setIsUnlocking(false);
         }
     };
 
@@ -179,7 +200,10 @@ export default function ManagerConstraintsPage() {
                 <Link to="/dashboard" className="text-blue-600 hover:text-blue-800 font-medium">
                     &rarr; חזרה ללוח הבקרה
                 </Link>
-                <h1 className="text-2xl font-bold text-slate-800">אילוצי עובדים לשבוע {weekId}</h1>
+                <h1 className="text-2xl font-bold text-slate-800">
+                    אילוצי עובדים — שבוע {getWeekNumber(weekId)}
+                    <span className="text-base font-normal text-slate-500 mr-2">{formatWeekDateRange(weekId)}</span>
+                </h1>
 
                 <div className="flex items-center space-x-2 space-x-reverse bg-white rounded-lg shadow-sm border border-slate-200 p-1">
                     <button
@@ -189,8 +213,9 @@ export default function ManagerConstraintsPage() {
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
-                    <span className="font-medium px-4 text-slate-700 min-w-[120px] text-center">
-                        {weekId}
+                    <span className="inline-flex flex-col items-center px-4 min-w-[150px]">
+                        <span className="font-semibold text-slate-700 text-sm">שבוע {getWeekNumber(weekId)}</span>
+                        <span className="text-xs text-slate-400">{formatWeekDateRange(weekId)}</span>
                     </span>
                     <button
                         onClick={handlePrevWeek}
@@ -201,25 +226,34 @@ export default function ManagerConstraintsPage() {
                     </button>
                 </div>
 
-                <button
-                    onClick={handleLock}
-                    disabled={isLocking || isCurrentWeekLocked || !hasAnyConstraints}
-                    className={`px-4 py-2 font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors flex items-center gap-2 ${isCurrentWeekLocked
-                        ? 'bg-slate-100 text-slate-500 border border-slate-200 cursor-not-allowed'
-                        : 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500'
-                        }`}
-                >
+                <div className="flex items-center gap-2">
                     {isCurrentWeekLocked ? (
                         <>
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
-                            האילוצים ננעלו
+                            {/* Locked status indicator */}
+                            <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-500 border border-slate-200 rounded-lg text-sm font-medium">
+                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
+                                האילוצים ננעלו
+                            </div>
+                            {/* Unlock button */}
+                            <button
+                                onClick={handleUnlock}
+                                disabled={isUnlocking}
+                                className="px-4 py-2 font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors flex items-center gap-2 bg-amber-500 text-white hover:bg-amber-600 focus:ring-amber-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 016 0h2a5 5 0 00-5-5z" /></svg>
+                                {isUnlocking ? 'מבטל נעילה...' : 'בטל נעילה'}
+                            </button>
                         </>
                     ) : (
-                        <>
+                        <button
+                            onClick={handleLock}
+                            disabled={isLocking || !hasAnyConstraints}
+                            className="px-4 py-2 font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors flex items-center gap-2 bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
                             {isLocking ? 'נועל...' : 'נעל אילוצים'}
-                        </>
+                        </button>
                     )}
-                </button>
+                </div>
             </div>
 
             {message && (

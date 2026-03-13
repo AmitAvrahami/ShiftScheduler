@@ -287,6 +287,72 @@ describe('Constraint Controller', () => {
             expect(res.status).toBe(403);
         });
 
+    });
+
+    describe('PATCH /api/constraints/unlock/:weekId', () => {
+        it('returns 403 if called by an employee', async () => {
+            const res = await request(app)
+                .patch('/api/constraints/unlock/2026-W17')
+                .set('Authorization', `Bearer ${employeeToken1}`);
+
+            expect(res.status).toBe(403);
+        });
+
+        it('unlocks all documents for that weekId and allows employees to resubmit', async () => {
+            await Constraint.create({
+                userId: employeeId1,
+                weekId: '2026-W19',
+                constraints: [],
+                isLocked: true
+            });
+            await Constraint.create({
+                userId: employeeId2,
+                weekId: '2026-W19',
+                constraints: [],
+                isLocked: true
+            });
+
+            const res = await request(app)
+                .patch('/api/constraints/unlock/2026-W19')
+                .set('Authorization', `Bearer ${managerToken}`);
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(res.body.unlockedCount).toBeDefined();
+
+            const doc1 = await Constraint.findOne({ userId: employeeId1, weekId: '2026-W19' });
+            const doc2 = await Constraint.findOne({ userId: employeeId2, weekId: '2026-W19' });
+            expect(doc1?.isLocked).toBe(false);
+            expect(doc2?.isLocked).toBe(false);
+        });
+
+        it('after unlock: POST /api/constraints succeeds for that weekId', async () => {
+            await Constraint.create({
+                userId: employeeId1,
+                weekId: '2026-W21',
+                constraints: [],
+                isLocked: true
+            });
+
+            await request(app)
+                .patch('/api/constraints/unlock/2026-W21')
+                .set('Authorization', `Bearer ${managerToken}`);
+
+            const payload = {
+                weekId: '2026-W21',
+                constraints: [{ date: '2026-05-17T00:00:00.000Z', shift: 'morning', canWork: true }]
+            };
+
+            const res = await request(app)
+                .post('/api/constraints')
+                .set('Authorization', `Bearer ${employeeToken1}`)
+                .send(payload);
+
+            expect(res.status).toBe(200);
+        });
+    });
+
+    describe('PATCH /api/constraints/lock/:weekId', () => {
         it('after lock: POST /api/constraints returns 403 for that weekId', async () => {
             // Seed constraint so we have something to lock
             await Constraint.create({

@@ -324,17 +324,39 @@ describe('Schedule Controller', () => {
             expect(res.status).toBe(401);
         });
 
-        it('returns 400 if schedule is already published', async () => {
-            await generateAndGetSchedule();
-            await Schedule.updateOne({}, { isPublished: true });
+        it('allows editing a published schedule and sends notifications to active users', async () => {
+            // Generate and publish
+            const genRes = await request(app)
+                .post('/api/schedules/generate')
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send({ weekId: TEST_WEEK_ID });
+
+            await request(app)
+                .patch(`/api/schedules/${TEST_WEEK_ID}/publish`)
+                .set('Authorization', `Bearer ${managerToken}`);
+
+            // Clear existing notifications
+            await Notification.deleteMany({ weekId: TEST_WEEK_ID });
+
+            // Now edit the published schedule
+            const validShifts = genRes.body.data.schedule.shifts.map((s: any) => ({
+                date: s.date,
+                type: s.type,
+                employees: s.employees.map((e: any) => e._id ?? e),
+            }));
 
             const res = await request(app)
                 .patch(`/api/schedules/${TEST_WEEK_ID}/shifts`)
                 .set('Authorization', `Bearer ${managerToken}`)
-                .send({ shifts: [] });
+                .send({ shifts: validShifts });
 
-            expect(res.status).toBe(400);
-            expect(res.body.message).toBe('לא ניתן לערוך סידור שכבר פורסם');
+            expect(res.status).toBe(200);
+
+            // Notifications should have been created for all active users
+            const notifications = await Notification.find({ weekId: TEST_WEEK_ID });
+            const activeUserCount = await User.countDocuments({ isActive: true });
+            expect(notifications.length).toBe(activeUserCount);
+            expect(notifications[0].message).toBe('סידור העבודה עודכן על ידי המנהל — בדוק את השינויים');
         });
 
         it('returns 404 if no schedule found for weekId', async () => {

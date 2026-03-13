@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../lib/api';
-import { getCurrentWeekId, getWeekDates, isDeadlinePassed, getWeekId } from '../utils/weekUtils';
+import { getCurrentWeekId, getWeekDates, getWeekId, getWeekNumber, formatWeekDateRange } from '../utils/weekUtils';
 
 const SHIFTS = [
     { id: 'morning', label: 'בוקר' },
@@ -24,12 +24,10 @@ export default function ConstraintFormPage() {
     const [dates, setDates] = useState<Date[]>([]);
     const [constraints, setConstraints] = useState<ConstraintEntry[]>([]);
     const [isLocked, setIsLocked] = useState(false);
-    const [isSchedulePublished, setIsSchedulePublished] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
     useEffect(() => {
-        // Generate dates for current weekId
         try {
             setDates(getWeekDates(weekId));
         } catch (e) {
@@ -44,25 +42,19 @@ export default function ConstraintFormPage() {
     const fetchMyConstraints = async () => {
         setIsLoading(true);
         try {
-            const [constraintsRes, scheduleRes] = await Promise.allSettled([
-                api.get(`/constraints/my/${weekId}`),
-                api.get(`/schedules/${weekId}`),
-            ]);
+            const res = await api.get(`/constraints/my/${weekId}`);
 
-            if (constraintsRes.status === 'fulfilled' && constraintsRes.value.data.data) {
-                setConstraints(constraintsRes.value.data.data.constraints.map((c: any) => ({
+            if (res.data.data) {
+                setConstraints(res.data.data.constraints.map((c: any) => ({
                     date: new Date(c.date).toISOString(),
                     shift: c.shift,
                     canWork: c.canWork
                 })));
-                setIsLocked(constraintsRes.value.data.data.isLocked);
+                setIsLocked(res.data.data.isLocked);
             } else {
                 setConstraints([]);
                 setIsLocked(false);
             }
-
-            // If schedule exists and is published (200 response), block the form
-            setIsSchedulePublished(scheduleRes.status === 'fulfilled');
         } catch (error) {
             console.error('Failed to fetch constraints', error);
             setMessage({ text: 'שגיאה בטעינת אילוצים', type: 'error' });
@@ -85,16 +77,23 @@ export default function ConstraintFormPage() {
         }
     };
 
+    // The week is considered past once Saturday end-of-day has passed
+    const isPastWeek = dates.length > 0 && (() => {
+        const saturdayEnd = new Date(dates[6]);
+        saturdayEnd.setHours(23, 59, 59, 999);
+        return new Date() > saturdayEnd;
+    })();
+
+    const readOnly = isLocked || isPastWeek;
+
     const handleToggle = (dateStr: string, shiftId: string) => {
-        if (isLocked || isDeadlinePassed(weekId)) return;
+        if (readOnly) return;
 
         setConstraints(prev => {
             const existsIndex = prev.findIndex(c => c.date === dateStr && c.shift === shiftId);
             if (existsIndex >= 0) {
-                // Remove it if it was checked (meaning they now CAN work)
                 return prev.filter((_, i) => i !== existsIndex);
             } else {
-                // Add it (meaning they CANNOT work)
                 return [...prev, { date: dateStr, shift: shiftId, canWork: false }];
             }
         });
@@ -106,7 +105,7 @@ export default function ConstraintFormPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (isLocked || isDeadlinePassed(weekId)) return;
+        if (readOnly) return;
 
         setIsLoading(true);
         setMessage(null);
@@ -130,9 +129,6 @@ export default function ConstraintFormPage() {
         }
     };
 
-    const deadlinePassed = isDeadlinePassed(weekId);
-    const readOnly = isLocked || deadlinePassed;
-
     return (
         <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-6" dir="rtl">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -150,8 +146,9 @@ export default function ConstraintFormPage() {
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                         </button>
-                        <span className="font-medium px-4 text-slate-700 min-w-[120px] text-center">
-                            {weekId}
+                        <span className="inline-flex flex-col items-center px-4 min-w-[150px]">
+                            <span className="font-semibold text-slate-700 text-sm">שבוע {getWeekNumber(weekId)}</span>
+                            <span className="text-xs text-slate-400">{formatWeekDateRange(weekId)}</span>
                         </span>
                         <button
                             onClick={handlePrevWeek}
@@ -165,14 +162,21 @@ export default function ConstraintFormPage() {
                 </div>
             </div>
 
-            {readOnly && (
+            {isLocked && (
                 <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-lg flex items-center space-x-2 space-x-reverse">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                     </svg>
-                    <span className="font-medium">
-                        האילוצים ננעלו ולא ניתן לשנות. {deadlinePassed ? 'עבר מועד ההגשה.' : ''}
-                    </span>
+                    <span className="font-medium">האילוצים ננעלו על ידי המנהל — לא ניתן לערוך</span>
+                </div>
+            )}
+
+            {isPastWeek && !isLocked && (
+                <div className="bg-slate-100 border border-slate-300 text-slate-600 p-4 rounded-lg flex items-center space-x-2 space-x-reverse">
+                    <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="font-medium">לא ניתן להגיש אילוצים לשבוע שעבר</span>
                 </div>
             )}
 
@@ -182,18 +186,9 @@ export default function ConstraintFormPage() {
                 </div>
             )}
 
-            {isSchedulePublished && (
-                <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg flex items-center space-x-2 space-x-reverse">
-                    <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                    </svg>
-                    <span className="font-medium">לא ניתן להגיש אילוצים לשבוע זה - הסידור כבר פורסם</span>
-                </div>
-            )}
-
             {isLoading && dates.length === 0 ? (
                 <div className="text-center py-10">טוען...</div>
-            ) : isSchedulePublished ? null : (
+            ) : (
                 <form onSubmit={handleSubmit} className="bg-white shadow rounded-lg overflow-hidden border border-slate-200">
                     <div className="p-4 bg-slate-50 border-b border-slate-200">
                         <p className="text-sm text-slate-600">

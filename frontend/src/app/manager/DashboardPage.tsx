@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { scheduleAPI } from '../../lib/api';
-import { getCurrentWeekId } from '../../utils/weekUtils';
+import { getCurrentWeekId, getWeekNumber, formatWeekDateRange } from '../../utils/weekUtils';
 import NotificationBell from '../../components/NotificationBell';
 import api from '../../lib/api';
 
@@ -114,7 +114,7 @@ export default function ManagerDashboard() {
                                 {STATUS_LABELS[quickInfo.scheduleStatus].label}
                             </p>
                         )}
-                        <p className="text-xs text-gray-400 mt-1">{weekId}</p>
+                        <p className="text-xs text-gray-400 mt-1">שבוע {getWeekNumber(weekId)} | {formatWeekDateRange(weekId)}</p>
                     </div>
 
                     {/* Constraints Submissions Card */}

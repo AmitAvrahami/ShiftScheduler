@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { Constraint } from '../models/Constraint';
-import { Schedule } from '../models/Schedule';
-import { isDeadlinePassed, getWeekDates } from '../utils/weekUtils';
+import { getWeekDates } from '../utils/weekUtils';
 
 // Define the incoming schema for validation
 const constraintSchema = z.object({
@@ -20,21 +19,14 @@ export const submitConstraints = async (req: Request, res: Response) => {
         const body = constraintSchema.parse(req.body);
         const { weekId, constraints } = body;
 
-        // Reject if current deadline for this week has passed
-        if (isDeadlinePassed(weekId)) {
+        // Reject if the week has already passed (after Saturday end-of-day)
+        const weekDates = getWeekDates(weekId);
+        const saturdayEnd = new Date(weekDates[6]);
+        saturdayEnd.setHours(23, 59, 59, 999);
+        if (new Date() > saturdayEnd) {
             return res.status(403).json({
                 success: false,
-                message: 'עבר מועד הגשת האילוצים לשבוע זה (יום שני 23:59)'
-            });
-        }
-
-        // Check if a published schedule already exists for this week
-        const weekStartDate = getWeekDates(weekId)[0];
-        const publishedSchedule = await Schedule.findOne({ weekStartDate, isPublished: true });
-        if (publishedSchedule) {
-            return res.status(400).json({
-                success: false,
-                message: 'לא ניתן להגיש אילוצים לשבוע זה - הסידור כבר פורסם'
+                message: 'לא ניתן להגיש אילוצים לשבוע שעבר'
             });
         }
 
@@ -120,6 +112,26 @@ export const lockConstraints = async (req: Request, res: Response) => {
         });
     } catch (error) {
         console.error('Error locking constraints:', error);
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+export const unlockConstraints = async (req: Request, res: Response) => {
+    try {
+        const { weekId } = req.params;
+
+        const result = await Constraint.updateMany(
+            { weekId },
+            { $set: { isLocked: false } }
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: 'הנעילה הוסרה',
+            unlockedCount: result.modifiedCount
+        });
+    } catch (error) {
+        console.error('Error unlocking constraints:', error);
         return res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

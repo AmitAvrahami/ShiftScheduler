@@ -15,7 +15,7 @@ import {
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { scheduleAPI, usersAPI, constraintAPI, SaveShiftsPayload } from '../lib/api';
-import { getCurrentWeekId, getWeekDates, getWeekId } from '../utils/weekUtils';
+import { getCurrentWeekId, getWeekDates, getWeekId, getWeekNumber, formatWeekDateRange } from '../utils/weekUtils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -460,6 +460,7 @@ export default function ScheduleManagerPage() {
     const [isPublishing, setIsPublishing] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
+    const [isEditingPublished, setIsEditingPublished] = useState(false);
     const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
     const [warnings, setWarnings] = useState<string[]>([]);
 
@@ -502,6 +503,7 @@ export default function ScheduleManagerPage() {
         setSchedule(null);
         setEditorShifts([]);
         setOriginalShifts([]);
+        setIsEditingPublished(false);
 
         try {
             const [scheduleRes, usersRes, constraintsRes] = await Promise.allSettled([
@@ -637,6 +639,7 @@ export default function ScheduleManagerPage() {
             setOriginalShifts(cloneShifts(editorShifts));
             setHistory([]);
             showToast('השינויים נשמרו בהצלחה ✓', 'success');
+            if (isEditingPublished) setIsEditingPublished(false);
         } catch (err: unknown) {
             const message = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'שגיאה בשמירת השינויים';
             showToast(message, 'error');
@@ -910,6 +913,8 @@ export default function ScheduleManagerPage() {
     // ── Derived display state ─────────────────────────────────────────────────
     const isPublished = schedule?.isPublished ?? false;
     const hasSchedule = !!schedule;
+    // true when schedule is published AND the manager has not clicked "Edit Arrangement"
+    const isReadOnly = isPublished && !isEditingPublished;
 
     // ── Render ────────────────────────────────────────────────────────────────
     return (
@@ -942,8 +947,9 @@ export default function ScheduleManagerPage() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
                         </button>
-                        <span className="font-semibold px-3 text-gray-700 min-w-[110px] text-center">
-                            {weekId}
+                        <span className="inline-flex flex-col items-center px-3 min-w-[150px]">
+                            <span className="font-semibold text-gray-700 text-sm">שבוע {getWeekNumber(weekId)}</span>
+                            <span className="text-xs text-gray-400">{formatWeekDateRange(weekId)}</span>
                         </span>
                         <button
                             onClick={handlePrevWeek}
@@ -960,7 +966,7 @@ export default function ScheduleManagerPage() {
                     {/* Action buttons */}
                     <div className="flex items-center gap-2 flex-wrap">
                         {/* Undo */}
-                        {!isPublished && (
+                        {!isReadOnly && (
                             <button
                                 onClick={handleUndo}
                                 disabled={history.length === 0}
@@ -985,8 +991,19 @@ export default function ScheduleManagerPage() {
                             ) : 'צור סידור'}
                         </button>
 
-                        {/* Save — hidden when published */}
-                        {!isPublished && (
+                        {/* Edit Arrangement — shown only when published and not yet in edit mode */}
+                        {isPublished && !isEditingPublished && (
+                            <button
+                                onClick={() => setIsEditingPublished(true)}
+                                disabled={isLoadingSchedule}
+                                className="px-4 py-2 text-sm bg-amber-500 text-white font-medium rounded-lg shadow-sm hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                ✎ ערוך סידור
+                            </button>
+                        )}
+
+                        {/* Save — shown when not read-only (draft or editing-published mode) */}
+                        {!isReadOnly && (
                             <button
                                 onClick={handleSave}
                                 disabled={!isDirty || isSaving || !hasSchedule}
@@ -1034,6 +1051,14 @@ export default function ScheduleManagerPage() {
                     </div>
                 </div>
 
+                {/* Warning banner: saving a published schedule will notify all employees */}
+                {isPublished && isEditingPublished && isDirty && (
+                    <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        <span>⚠️</span>
+                        <span>שמירה תשלח התראה לכל העובדים</span>
+                    </div>
+                )}
+
                 {/* Unsaved changes banner */}
                 {isDirty && !isPublished && (
                     <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 text-blue-700 text-sm">
@@ -1048,7 +1073,7 @@ export default function ScheduleManagerPage() {
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
-                        <span className="font-medium">הסידור פורסם לעובדים — לא ניתן לערוך</span>
+                        <span className="font-medium">הסידור פורסם לעובדים — שינויים ישלחו התראה לעובדים</span>
                     </div>
                 )}
 
@@ -1122,7 +1147,7 @@ export default function ScheduleManagerPage() {
                                                                 constraints={constraints}
                                                                 overId={overId}
                                                                 activeSource={activeSource}
-                                                                isPublished={isPublished}
+                                                                isPublished={isReadOnly}
                                                                 onRemoveEmployee={(empId) =>
                                                                     handleRemoveEmployee(cellKey, empId)
                                                                 }
@@ -1136,11 +1161,11 @@ export default function ScheduleManagerPage() {
                                 </div>
 
                                 {/* Trash zone */}
-                                {!isPublished && <TrashZone overId={overId} />}
+                                {!isReadOnly && <TrashZone overId={overId} />}
                             </div>
 
                             {/* ── Employee Sidebar (25%) ───────────────────── */}
-                            {!isPublished && (
+                            {!isReadOnly && (
                                 <div className="w-52 flex-shrink-0">
                                     <div className="bg-white rounded-xl border border-gray-200 shadow sticky top-4">
                                         <div className="px-4 py-3 border-b border-gray-100">

@@ -87,3 +87,20 @@ export function getDeadline(weekId: string): Date {
 export function isDeadlinePassed(weekId: string): boolean {
     return new Date().getTime() > getDeadline(weekId).getTime();
 }
+
+/**
+ * Returns the ISO week number as an integer, e.g. 12 from "2026-W12".
+ */
+export function getWeekNumber(weekId: string): number {
+    return parseInt(weekId.split('-W')[1], 10);
+}
+
+/**
+ * Returns a date-range string for the week, e.g. "15/3 – 21/3".
+ */
+export function formatWeekDateRange(weekId: string): string {
+    const dates = getWeekDates(weekId);
+    const start = dates[0];
+    const end = dates[6];
+    return `${start.getDate()}/${start.getMonth() + 1} – ${end.getDate()}/${end.getMonth() + 1}`;
+}

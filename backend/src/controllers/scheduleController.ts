@@ -263,14 +263,6 @@ export const updateShifts = async (req: Request, res: Response) => {
             });
         }
 
-        // Guard: cannot edit a published schedule
-        if (schedule.isPublished) {
-            return res.status(400).json({
-                success: false,
-                message: 'לא ניתן לערוך סידור שכבר פורסם',
-            });
-        }
-
         // Validate every employee ObjectId exists in Users collection
         const allEmployeeIds = shifts.flatMap(shift => shift.employees);
         const uniqueEmployeeIds = [...new Set(allEmployeeIds)];
@@ -304,6 +296,19 @@ export const updateShifts = async (req: Request, res: Response) => {
         }));
 
         await schedule.save();
+
+        // שלח התראות לכל העובדים הפעילים אם הסידור כבר פורסם
+        if (schedule.isPublished) {
+            const activeUsers = await User.find({ isActive: true }).select('_id');
+            const notifications = activeUsers.map(user => ({
+                userId: user._id,
+                type: 'schedule_updated' as const,
+                message: 'סידור העבודה עודכן על ידי המנהל — בדוק את השינויים',
+                weekId,
+                isRead: false,
+            }));
+            await Notification.insertMany(notifications);
+        }
 
         const updatedSchedule = await Schedule.findById(schedule._id)
             .populate('shifts.employees', 'name');

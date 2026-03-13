@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { scheduleAPI } from '../lib/api';
-import { getCurrentWeekId, getWeekDates, getWeekId } from '../utils/weekUtils';
+import { getCurrentWeekId, getWeekDates, getWeekId, getWeekNumber, formatWeekDateRange } from '../utils/weekUtils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -130,7 +130,10 @@ export default function ScheduleViewPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
                     </button>
-                    <span className="font-semibold px-4 text-gray-700 min-w-[130px] text-center">{weekId}</span>
+                    <span className="inline-flex flex-col items-center px-4 min-w-[150px]">
+                        <span className="font-semibold text-gray-700 text-sm">שבוע {getWeekNumber(weekId)}</span>
+                        <span className="text-xs text-gray-400">{formatWeekDateRange(weekId)}</span>
+                    </span>
                     <button
                         onClick={handlePrevWeek}
                         className="p-2 hover:bg-gray-100 rounded text-gray-600 transition-colors"

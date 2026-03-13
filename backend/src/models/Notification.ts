@@ -1,12 +1,12 @@
 import mongoose, { Document, Schema, Types } from 'mongoose';
 
 /** Type literals for notification categories */
-export type NotificationType = 'schedule_published';
+export type NotificationType = 'schedule_published' | 'schedule_updated';
 
 /**
  * Notification document stored in MongoDB.
  *
- * Created when a schedule is published; consumed by the notification bell UI.
+ * Created when a schedule is published or updated; consumed by the notification bell UI.
  */
 export interface INotification extends Document {
     userId: Types.ObjectId;
@@ -20,7 +20,7 @@ export interface INotification extends Document {
 const notificationSchema = new Schema<INotification>(
     {
         userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-        type: { type: String, enum: ['schedule_published'], required: true },
+        type: { type: String, enum: ['schedule_published', 'schedule_updated'], required: true },
         message: { type: String, required: true },
         weekId: { type: String, required: true },
         isRead: { type: Boolean, default: false },
