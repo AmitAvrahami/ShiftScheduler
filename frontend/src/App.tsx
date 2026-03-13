@@ -7,6 +7,7 @@ import ManagerConstraintsPage from './pages/ManagerConstraintsPage';
 import ScheduleManagerPage from './pages/ScheduleManagerPage';
 import MySchedulePage from './pages/MySchedulePage';
 import ScheduleViewPage from './pages/ScheduleViewPage';
+import EmployeeManagementPage from './pages/EmployeeManagementPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { useAuthStore } from './store/authStore';
 
@@ -57,6 +58,13 @@ function App() {
                 <Route path="/manager/schedule" element={
                     <ProtectedRoute>
                         {isManager ? <ScheduleManagerPage /> : <Navigate to="/dashboard" replace />}
+                    </ProtectedRoute>
+                } />
+
+                {/* Manager-only employee management */}
+                <Route path="/manager/employees" element={
+                    <ProtectedRoute>
+                        {isManager ? <EmployeeManagementPage /> : <Navigate to="/dashboard" replace />}
                     </ProtectedRoute>
                 } />
 

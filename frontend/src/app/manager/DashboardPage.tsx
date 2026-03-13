@@ -88,6 +88,7 @@ export default function ManagerDashboard() {
                     <div className="flex items-center gap-4">
                         <Link to="/manager/constraints" className="text-blue-600 hover:text-blue-800 font-medium">ניהול אילוצים</Link>
                         <Link to="/manager/schedule" className="text-blue-600 hover:text-blue-800 font-medium">ניהול סידור</Link>
+                        <Link to="/manager/employees" className="text-blue-600 hover:text-blue-800 font-medium">ניהול עובדים</Link>
                         <Link to="/schedule" className="text-blue-600 hover:text-blue-800 font-medium">סידור עבודה</Link>
                         <NotificationBell />
                         <span className="text-gray-700">שלום, {user?.name}</span>

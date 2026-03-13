@@ -65,8 +65,18 @@ export const scheduleAPI = {
 };
 
 export const usersAPI = {
-    /** Fetches all active users — manager only. */
+    /** Fetches all active users — manager only. Used by schedule/constraint pages. */
     getAll: () => api.get('/users'),
+    /** Fetches ALL users including inactive — manager only. For employee management page. */
+    getAllForManagement: () => api.get('/users/all'),
+    /** Creates a new employee — manager only. */
+    create: (data: { name: string; email: string; password: string; role?: string; isFixedMorning?: boolean }) =>
+        api.post('/users', data),
+    /** Updates an employee's details — manager only. Password is optional (omit to keep unchanged). */
+    update: (id: string, data: { name?: string; email?: string; password?: string; role?: string; isFixedMorning?: boolean; isActive?: boolean }) =>
+        api.patch(`/users/${id}`, data),
+    /** Soft-deletes an employee (sets isActive: false) — manager only. */
+    deactivate: (id: string) => api.delete(`/users/${id}`),
 };
 
 export const constraintAPI = {
