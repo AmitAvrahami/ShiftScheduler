@@ -8,7 +8,9 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "seed": "ts-node src/scripts/seed.ts",
-    "test": "jest"
+    "seed:employees": "ts-node src/scripts/addEmployees.ts",
+    "test": "jest",
+    "test:api": "node scripts/api_tests.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

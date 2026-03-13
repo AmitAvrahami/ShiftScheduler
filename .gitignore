@@ -2,10 +2,16 @@
 node_modules/
 npm-debug.log
 yarn-error.log
+package-lock.json
 
 # Vite
 dist/
 dist-ssr/
+
+# Test artifacts
+coverage/
+vitest.log
+*.log
 
 # Env
 .env
@@ -33,3 +39,5 @@ __pycache__/
 venv/
 .venv/
 .trash
+tmp/
+

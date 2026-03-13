@@ -69,12 +69,12 @@ export default function ManagerConstraintsPage() {
 
             const validConstraints: EmployeeConstraint[] = constraintsRes.data.success
                 ? constraintsRes.data.data.filter(
-                    (c: EmployeeConstraint) => c.userId && c.userId.role !== 'manager' && c.userId.isActive
+                    (c: EmployeeConstraint) => c.userId && c.userId.isActive
                 )
                 : [];
 
             const activeUsers: ActiveUser[] = usersRes.data.success
-                ? usersRes.data.data.filter((u: ActiveUser) => u.role !== 'manager')
+                ? usersRes.data.data
                 : [];
 
             const constraintMap = new Map<string, EmployeeConstraint>();
@@ -295,6 +295,11 @@ export default function ManagerConstraintsPage() {
                                         <td className="px-6 py-4 font-medium text-slate-900 sticky right-0 bg-white group-hover:bg-slate-50 z-10 border-l border-slate-200 shadow-[inset_-1px_0_0_0_rgb(226,232,240)]">
                                             <div className="flex flex-col">
                                                 <span>{row.user.name}</span>
+                                                {row.user.role === 'manager' && (
+                                                    <span className="text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200 w-fit mt-1">
+                                                        מנהל
+                                                    </span>
+                                                )}
                                                 {row.user.isFixedMorning && (
                                                     <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 w-fit mt-1">
                                                         קבוע בוקר

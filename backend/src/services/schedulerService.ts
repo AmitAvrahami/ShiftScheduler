@@ -231,19 +231,25 @@ export async function generateWeekSchedule(
     for (const slot of shiftSlots) {
         const assignedEmployeeIds: Types.ObjectId[] = [];
 
-        // 7a. מציאת מנהל (תמיד ראשון לבוקר)
-        const managerState = [...employeeStates.values()].find(s =>
+        // 7a. מציאת הנהלה ועובדי בוקר קבועים
+        const managerStates = [...employeeStates.values()].filter(s =>
             isManagerEmployee(s.user),
         );
 
-        if (slot.type === 'morning' && managerState) {
-            const managerId = managerState.user._id.toString();
-            assignedEmployeeIds.push(managerState.user._id);
+        if (slot.type === 'morning') {
+            for (const managerState of managerStates) {
+                const managerId = managerState.user._id.toString();
+                const isManagerBlocked = constraintMap[managerId]?.[slot.dateKey]?.['morning'];
 
-            // עדכון מצב מנהל
-            managerState.totalAssigned += 1;
-            managerState.assignedByDate[slot.dateKey] = slot.type;
-            employeeStates.set(managerId, managerState);
+                if (!isManagerBlocked && !assignedEmployeeIds.some(id => id.equals(managerState.user._id))) {
+                    assignedEmployeeIds.push(managerState.user._id);
+
+                    // עדכון מצב מנהל
+                    managerState.totalAssigned += 1;
+                    managerState.assignedByDate[slot.dateKey] = slot.type;
+                    employeeStates.set(managerId, managerState);
+                }
+            }
         }
 
         // 7b. סינון עובדים כשירים (לא-מנהל) לחריץ זה
@@ -257,8 +263,8 @@ export async function generateWeekSchedule(
                     const userId = state.user._id.toString();
                     const userIsManager = isManagerEmployee(state.user);
 
-                    // דלג על מנהל (כבר הוקצה למעלה לבוקר)
-                    if (slot.type === 'morning' && userIsManager) return false;
+                    // דלג על מנהל — הוקצה בנפרד לבוקר בלבד
+                    if (userIsManager) return false;
 
                     // דלג על עובד שכבר הוקצה לאותו יום
                     if (state.assignedByDate[slot.dateKey] !== undefined) return false;

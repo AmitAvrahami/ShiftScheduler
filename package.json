@@ -1,5 +1,10 @@
 {
-  "dependencies": {
-    "mongodb": "^7.1.0"
+  "name": "shift-scheduler",
+  "version": "1.0.0",
+  "description": "Shift Scheduler monorepo — see backend/ and frontend/ for app code",
+  "private": true,
+  "scripts": {
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev"
   }
 }

@@ -1,9 +1,10 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
-import { User } from './src/models/User';
+import path from 'path';
+import { User } from '../models/User';
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const employees = [
   { name: 'שני טקה',       email: 'shani_taka@shiftscheduler.com' },

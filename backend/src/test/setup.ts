@@ -3,6 +3,8 @@ import mongoose from 'mongoose';
 
 let mongoServer: MongoMemoryServer;
 
+jest.setTimeout(60000); // 60 seconds
+
 beforeAll(async () => {
     mongoServer = await MongoMemoryServer.create();
     const mongoUri = mongoServer.getUri();
@@ -11,7 +13,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await mongoose.disconnect();
-    await mongoServer.stop();
+    if (mongoServer) {
+        await mongoServer.stop();
+    }
 });
 
 afterEach(async () => {

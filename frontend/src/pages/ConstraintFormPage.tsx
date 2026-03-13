@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../lib/api';
 import { getCurrentWeekId, getWeekDates, getWeekId, getWeekNumber, formatWeekDateRange } from '../utils/weekUtils';
+import { useAuthStore } from '../store/authStore';
 
 const SHIFTS = [
     { id: 'morning', label: 'בוקר' },
@@ -20,6 +21,8 @@ interface ConstraintEntry {
 }
 
 export default function ConstraintFormPage() {
+    const { user } = useAuthStore();
+    const isManager = user?.role === 'manager';
     const [weekId, setWeekId] = useState<string>(getCurrentWeekId());
     const [dates, setDates] = useState<Date[]>([]);
     const [constraints, setConstraints] = useState<ConstraintEntry[]>([]);
@@ -192,7 +195,10 @@ export default function ConstraintFormPage() {
                 <form onSubmit={handleSubmit} className="bg-white shadow rounded-lg overflow-hidden border border-slate-200">
                     <div className="p-4 bg-slate-50 border-b border-slate-200">
                         <p className="text-sm text-slate-600">
-                            סמן את המשמרות בהן <span className="font-bold text-red-600">לא תוכל/י</span> לעבוד.
+                            {isManager
+                                ? <>סמן ימים בהם <span className="font-bold text-red-600">לא תוכלי לעבוד</span>. הבחירה חוסמת אוטומטית את משמרת הבוקר.</>
+                                : <>סמן את המשמרות בהן <span className="font-bold text-red-600">לא תוכל/י</span> לעבוד.</>
+                            }
                         </p>
                     </div>
                     <div className="divide-y divide-slate-200">
@@ -200,6 +206,33 @@ export default function ConstraintFormPage() {
                             const dateStr = date.toISOString();
                             const dayName = DAYS_HEBREW[index];
                             const dateLabel = `${date.getDate()}/${date.getMonth() + 1}`;
+
+                            if (isManager) {
+                                const checked = isChecked(dateStr, 'morning');
+                                return (
+                                    <label
+                                        key={dateStr}
+                                        className={`flex items-center justify-between p-4 md:p-6 cursor-pointer hover:bg-slate-50 transition-colors ${readOnly ? 'cursor-not-allowed' : ''}`}
+                                    >
+                                        <div>
+                                            <div className="font-semibold text-slate-800">{dayName}</div>
+                                            <div className="text-sm text-slate-500">{dateLabel}</div>
+                                        </div>
+                                        <div className={`flex items-center gap-3 px-4 py-2 rounded-lg border transition-all ${checked ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-white'} ${readOnly ? 'opacity-70' : ''}`}>
+                                            <input
+                                                type="checkbox"
+                                                className="w-5 h-5 text-red-500 border-slate-300 rounded focus:ring-red-400 focus:ring-offset-2"
+                                                checked={checked}
+                                                onChange={() => handleToggle(dateStr, 'morning')}
+                                                disabled={readOnly}
+                                            />
+                                            <span className={checked ? 'text-red-700 font-medium' : 'text-slate-600'}>
+                                                {checked ? 'לא עובדת' : 'פנויה'}
+                                            </span>
+                                        </div>
+                                    </label>
+                                );
+                            }
 
                             return (
                                 <div key={dateStr} className="p-4 md:p-6 flex flex-col md:flex-row md:items-center hover:bg-slate-50 transition-colors">
