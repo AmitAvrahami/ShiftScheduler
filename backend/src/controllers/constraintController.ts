@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { AuthRequest } from '../types/express';
 import { z } from 'zod';
 import { Constraint } from '../models/Constraint';
 import { getWeekDates } from '../utils/weekUtils';
@@ -13,9 +14,9 @@ const constraintSchema = z.object({
     })).min(1, "Constraints array cannot be empty")
 });
 
-export const submitConstraints = async (req: Request, res: Response) => {
+export const submitConstraints = async (req: AuthRequest, res: Response) => {
     try {
-        const userId = (req as any).user.userId;
+        const userId = req.user?.userId;
         const body = constraintSchema.parse(req.body);
         const { weekId, constraints } = body;
 
@@ -39,13 +40,22 @@ export const submitConstraints = async (req: Request, res: Response) => {
             });
         }
 
+        // Deduplicate by (date + shift) before saving
+        const seen = new Set<string>();
+        const uniqueConstraints = constraints.filter(c => {
+            const key = `${c.date.toISOString().split('T')[0]}_${c.shift}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+
         // Upsert constraints
         // If doesn't exist, create. If exists, replace constraints array and set submittedAt
         const updated = await Constraint.findOneAndUpdate(
             { userId, weekId },
             {
                 $set: {
-                    constraints,
+                    constraints: uniqueConstraints,
                     submittedAt: new Date(),
                     isLocked: false // Reset or ensure not locked from user side
                 }
@@ -63,9 +73,9 @@ export const submitConstraints = async (req: Request, res: Response) => {
     }
 };
 
-export const getMyConstraints = async (req: Request, res: Response) => {
+export const getMyConstraints = async (req: AuthRequest, res: Response) => {
     try {
-        const userId = (req as any).user.userId;
+        const userId = req.user?.userId;
         const { weekId } = req.params;
 
         const constraint = await Constraint.findOne({ userId, weekId });

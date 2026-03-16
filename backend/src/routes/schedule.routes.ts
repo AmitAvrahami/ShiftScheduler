@@ -1,5 +1,5 @@
 import express from 'express';
-import { generateSchedule, getSchedule, publishSchedule, getMySchedule, updateShifts } from '../controllers/scheduleController';
+import { generateSchedule, getSchedule, publishSchedule, getMySchedule, updateShifts, deleteSchedule } from '../controllers/scheduleController';
 import { authenticate, managerMiddleware } from '../middleware/auth.middleware';
 
 const router = express.Router();
@@ -14,6 +14,7 @@ router.get('/:weekId/my', getMySchedule);
 router.post('/generate', managerMiddleware, generateSchedule);
 router.patch('/:weekId/publish', managerMiddleware, publishSchedule);
 router.patch('/:weekId/shifts', managerMiddleware, updateShifts);
+router.delete('/:weekId', managerMiddleware, deleteSchedule);
 
 // All-authenticated routes
 router.get('/:weekId', getSchedule);

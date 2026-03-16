@@ -1,3 +1,7 @@
+node_modules/
+node_modules_old/
+dist/
+.mongodb-mem/
+.npm-cache/
 coverage/
-api_tests.js
-seed_test_users.js
+.env

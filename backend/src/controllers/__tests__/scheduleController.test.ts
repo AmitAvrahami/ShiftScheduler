@@ -422,4 +422,114 @@ describe('Schedule Controller', () => {
             expect(res.body.message).toBe('אחד או יותר מהעובדים לא נמצאו במערכת');
         });
     });
+
+    // ─── DELETE /api/schedules/:weekId ────────────────────────────────────────
+
+    describe('DELETE /api/schedules/:weekId', () => {
+        const generateScheduleForWeek = async (weekId: string) => {
+            await request(app)
+                .post('/api/schedules/generate')
+                .set('Authorization', `Bearer ${managerToken}`)
+                .send({ weekId });
+        };
+
+        it('manager can delete a current/future schedule and receives 200', async () => {
+            await generateScheduleForWeek(TEST_WEEK_ID);
+
+            const res = await request(app)
+                .delete(`/api/schedules/${TEST_WEEK_ID}`)
+                .set('Authorization', `Bearer ${managerToken}`);
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(res.body.message).toBe('הסידור נמחק בהצלחה');
+        });
+
+        it('schedule is actually removed from DB after delete', async () => {
+            await generateScheduleForWeek(TEST_WEEK_ID);
+
+            await request(app)
+                .delete(`/api/schedules/${TEST_WEEK_ID}`)
+                .set('Authorization', `Bearer ${managerToken}`);
+
+            const getRes = await request(app)
+                .get(`/api/schedules/${TEST_WEEK_ID}`)
+                .set('Authorization', `Bearer ${managerToken}`);
+
+            expect(getRes.status).toBe(404);
+        });
+
+        it('sends notifications to all active users on delete', async () => {
+            await generateScheduleForWeek(TEST_WEEK_ID);
+
+            await request(app)
+                .delete(`/api/schedules/${TEST_WEEK_ID}`)
+                .set('Authorization', `Bearer ${managerToken}`);
+
+            const notifications = await Notification.find({ weekId: TEST_WEEK_ID, type: 'schedule_deleted' });
+            const activeUserCount = await User.countDocuments({ isActive: true });
+            expect(notifications.length).toBe(activeUserCount);
+            expect(notifications[0].message).toContain('בוטל');
+            expect(notifications[0].message).toContain('סידור חדש יפורסם בהמשך');
+        });
+
+        it('returns 403 if called by employee', async () => {
+            await generateScheduleForWeek(TEST_WEEK_ID);
+
+            const res = await request(app)
+                .delete(`/api/schedules/${TEST_WEEK_ID}`)
+                .set('Authorization', `Bearer ${employeeToken}`);
+
+            expect(res.status).toBe(403);
+        });
+
+        it('returns 401 if not authenticated', async () => {
+            const res = await request(app)
+                .delete(`/api/schedules/${TEST_WEEK_ID}`);
+
+            expect(res.status).toBe(401);
+        });
+
+        it('returns 404 if no schedule exists for weekId', async () => {
+            const res = await request(app)
+                .delete(`/api/schedules/${TEST_WEEK_ID}`)
+                .set('Authorization', `Bearer ${managerToken}`);
+
+            expect(res.status).toBe(404);
+            expect(res.body.message).toBe('לא נמצא סידור לשבוע זה');
+        });
+
+        it('returns 400 for a past week', async () => {
+            const PAST_WEEK_ID = '2020-W01';
+
+            const res = await request(app)
+                .delete(`/api/schedules/${PAST_WEEK_ID}`)
+                .set('Authorization', `Bearer ${managerToken}`);
+
+            expect(res.status).toBe(400);
+            expect(res.body.message).toBe('לא ניתן למחוק סידור של שבוע שעבר');
+        });
+
+        it('returns 400 for invalid weekId format', async () => {
+            const res = await request(app)
+                .delete('/api/schedules/bad-id')
+                .set('Authorization', `Bearer ${managerToken}`);
+
+            expect(res.status).toBe(400);
+        });
+
+        it('can delete a published schedule', async () => {
+            await generateScheduleForWeek(TEST_WEEK_ID);
+            await request(app)
+                .patch(`/api/schedules/${TEST_WEEK_ID}/publish`)
+                .set('Authorization', `Bearer ${managerToken}`);
+
+            const res = await request(app)
+                .delete(`/api/schedules/${TEST_WEEK_ID}`)
+                .set('Authorization', `Bearer ${managerToken}`);
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+        });
+    });
 });

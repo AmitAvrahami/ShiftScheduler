@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { AuthRequest } from '../types/express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { User } from '../models/User';
@@ -92,10 +93,10 @@ export const login = async (req: Request, res: Response) => {
 };
 
 // אחזור פרטי המשתמש המחובר
-export const getMe = async (req: Request, res: Response) => {
+export const getMe = async (req: AuthRequest, res: Response) => {
     try {
         // req.user will be populated by auth middleware
-        const userId = (req as any).user?.userId;
+        const userId = req.user?.userId;
         if (!userId) {
             return res.status(401).json({ message: 'משתמש לא מחובר' });
         }

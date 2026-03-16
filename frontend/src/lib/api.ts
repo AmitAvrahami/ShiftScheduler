@@ -62,6 +62,9 @@ export const scheduleAPI = {
     /** Persists drag-and-drop edits made by the manager. */
     saveShifts: (weekId: string, payload: SaveShiftsPayload) =>
         api.patch(`/schedules/${weekId}/shifts`, payload),
+    /** Deletes a schedule (current/future weeks only) and notifies all employees. */
+    deleteSchedule: (weekId: string) =>
+        api.delete(`/schedules/${weekId}`),
 };
 
 export const usersAPI = {

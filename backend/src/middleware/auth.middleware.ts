@@ -1,8 +1,9 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
+import { AuthRequest } from '../types/express';
 import jwt from 'jsonwebtoken';
 import { User } from '../models/User';
 
-export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
+export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -21,7 +22,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
             return res.status(401).json({ message: 'User not found' });
         }
 
-        (req as any).user = { userId: decoded.userId, role: decoded.role };
+        req.user = { userId: decoded.userId, role: decoded.role };
         next();
     } catch (error) {
         console.error('❌ Token verification failed:', error);
@@ -29,8 +30,8 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     }
 };
 
-export const managerMiddleware = (req: Request, res: Response, next: NextFunction) => {
-    const userRole = (req as any).user?.role;
+export const managerMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
+    const userRole = req.user?.role;
     if (userRole !== 'manager') {
         return res.status(403).json({ message: 'Access denied. Manager role required.' });
     }

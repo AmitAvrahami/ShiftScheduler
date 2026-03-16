@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { AuthRequest } from '../types/express';
 import { z } from 'zod';
 import mongoose from 'mongoose';
 import { Schedule } from '../models/Schedule';
@@ -43,11 +44,7 @@ const updateShiftsBodySchema = z.object({
  */
 export const generateSchedule = async (req: Request, res: Response) => {
     try {
-        const { weekId } = weekIdSchema.parse(req.body.weekId)
-            ? req.body
-            : (() => { throw new Error('Invalid weekId'); })();
-
-        weekIdSchema.parse(weekId);
+        const weekId = weekIdSchema.parse(req.body.weekId);
 
         // בדוק אם הסידור כבר פורסם — לא ניתן לשנות לאחר פרסום
         const existingSchedule = await Schedule.findOne({
@@ -99,7 +96,7 @@ export const generateSchedule = async (req: Request, res: Response) => {
  * @param req - { params: { weekId: string }, user: { role: string } }
  * @param res - full ISchedule document with employees populated (name only)
  */
-export const getSchedule = async (req: Request, res: Response) => {
+export const getSchedule = async (req: AuthRequest, res: Response) => {
     try {
         const { weekId } = req.params;
         weekIdSchema.parse(weekId);
@@ -113,7 +110,7 @@ export const getSchedule = async (req: Request, res: Response) => {
         }
 
         // עובד רגיל לא רואה סידור לא פורסם
-        const userRole = (req as any).user?.role;
+        const userRole = req.user?.role;
         if (!schedule.isPublished && userRole !== 'manager') {
             return res.status(404).json({ success: false, message: 'הסידור טרם פורסם' });
         }
@@ -137,39 +134,49 @@ export const getSchedule = async (req: Request, res: Response) => {
  * @param res - updated ISchedule document
  */
 export const publishSchedule = async (req: Request, res: Response) => {
+    const session = await mongoose.startSession();
     try {
         const { weekId } = req.params;
         weekIdSchema.parse(weekId);
 
         const weekStartDate = getWeekDates(weekId)[0];
-        const schedule = await Schedule.findOneAndUpdate(
-            { weekStartDate },
-            { isPublished: true },
-            { new: true },
-        ).populate('shifts.employees', 'name');
 
-        if (!schedule) {
-            return res.status(404).json({ success: false, message: 'לא נמצא סידור לשבוע זה' });
-        }
+        let schedule;
+        await session.withTransaction(async () => {
+            schedule = await Schedule.findOneAndUpdate(
+                { weekStartDate },
+                { isPublished: true },
+                { new: true, session },
+            ).populate('shifts.employees', 'name');
 
-        // יצירת התראות לכל העובדים הפעילים
-        const activeUsers = await User.find({ isActive: true }).select('_id');
-        const notifications = activeUsers.map(user => ({
-            userId: user._id,
-            type: 'schedule_published' as const,
-            message: `הסידור לשבוע ${weekId} פורסם`,
-            weekId,
-            isRead: false,
-        }));
-        await Notification.insertMany(notifications);
+            if (!schedule) {
+                throw new Error('NOT_FOUND');
+            }
+
+            // יצירת התראות לכל העובדים הפעילים
+            const activeUsers = await User.find({ isActive: true }).session(session).select('_id');
+            const notifications = activeUsers.map(user => ({
+                userId: user._id,
+                type: 'schedule_published' as const,
+                message: `הסידור לשבוע ${weekId} פורסם`,
+                weekId,
+                isRead: false,
+            }));
+            await Notification.insertMany(notifications, { session });
+        });
 
         return res.status(200).json({ success: true, data: schedule });
-    } catch (error) {
+    } catch (error: any) {
+        if (error.message === 'NOT_FOUND') {
+            return res.status(404).json({ success: false, message: 'לא נמצא סידור לשבוע זה' });
+        }
         if (error instanceof z.ZodError) {
             return res.status(400).json({ success: false, message: error.errors[0]?.message });
         }
         console.error('Error publishing schedule:', error);
         return res.status(500).json({ success: false, message: 'Internal server error' });
+    } finally {
+        await session.endSession();
     }
 };
 
@@ -182,13 +189,13 @@ export const publishSchedule = async (req: Request, res: Response) => {
  * @param req - { params: { weekId: string }, user: { userId: string, role: string } }
  * @param res - Array of IShift filtered to this user only
  */
-export const getMySchedule = async (req: Request, res: Response) => {
+export const getMySchedule = async (req: AuthRequest, res: Response) => {
     try {
         const { weekId } = req.params;
         weekIdSchema.parse(weekId);
 
-        const userId = (req as any).user?.userId;
-        const userRole = (req as any).user?.role;
+        const userId = req.user?.userId;
+        const userRole = req.user?.role;
 
         const weekStartDate = getWeekDates(weekId)[0];
         const schedule = await Schedule.findOne({ weekStartDate })
@@ -224,6 +231,62 @@ export const getMySchedule = async (req: Request, res: Response) => {
 };
 
 /**
+ * DELETE /api/schedules/:weekId  [MANAGER ONLY]
+ *
+ * Deletes a schedule for the given week, only if the week is current or in the future.
+ * Notifies all active employees that the schedule has been cancelled.
+ *
+ * @param req - { params: { weekId: string } }
+ * @param res - success message
+ */
+export const deleteSchedule = async (req: Request, res: Response) => {
+    try {
+        const { weekId } = req.params;
+        weekIdSchema.parse(weekId);
+
+        const weekDates = getWeekDates(weekId);
+        const weekStartDate = weekDates[0];
+        const weekEndDate = new Date(weekStartDate.getTime() + 6 * 24 * 60 * 60 * 1000);
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (weekEndDate < today) {
+            return res.status(400).json({
+                success: false,
+                message: 'לא ניתן למחוק סידור של שבוע שעבר',
+            });
+        }
+
+        const schedule = await Schedule.findOneAndDelete({ weekStartDate });
+        if (!schedule) {
+            return res.status(404).json({ success: false, message: 'לא נמצא סידור לשבוע זה' });
+        }
+
+        const startDateStr = weekStartDate.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
+        const endDateStr = weekEndDate.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
+
+        const activeUsers = await User.find({ isActive: true }).select('_id');
+        const notifications = activeUsers.map(user => ({
+            userId: user._id,
+            type: 'schedule_deleted' as const,
+            message: `הסידור לתאריכים ${startDateStr} - ${endDateStr} בוטל. סידור חדש יפורסם בהמשך.`,
+            weekId,
+            isRead: false,
+        }));
+        await Notification.insertMany(notifications);
+
+        return res.status(200).json({ success: true, message: 'הסידור נמחק בהצלחה' });
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ success: false, message: error.errors[0]?.message });
+        }
+        console.error('Error deleting schedule:', error);
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
  * PATCH /api/schedules/:weekId/shifts  [MANAGER ONLY]
  *
  * Replaces the shifts array of an existing schedule document.
@@ -245,7 +308,8 @@ export const getMySchedule = async (req: Request, res: Response) => {
  * @param req - { params: { weekId }, body: { shifts: Array<{ date, type, employees[] }> } }
  * @param res - Updated and populated ISchedule document
  */
-export const updateShifts = async (req: Request, res: Response) => {
+export const updateShifts = async (req: AuthRequest, res: Response) => {
+    const session = await mongoose.startSession();
     try {
         const { weekId } = req.params;
         weekIdSchema.parse(weekId);
@@ -254,7 +318,7 @@ export const updateShifts = async (req: Request, res: Response) => {
         const { shifts } = updateShiftsBodySchema.parse(req.body);
 
         const weekStartDate = getWeekDates(weekId)[0];
-        const schedule = await Schedule.findOne({ weekStartDate });
+        const schedule = await Schedule.findOne({ weekStartDate }).session(session);
 
         if (!schedule) {
             return res.status(404).json({
@@ -267,19 +331,17 @@ export const updateShifts = async (req: Request, res: Response) => {
         const allEmployeeIds = shifts.flatMap(shift => shift.employees);
         const uniqueEmployeeIds = [...new Set(allEmployeeIds)];
 
-        for (const empId of uniqueEmployeeIds) {
-            if (!mongoose.isValidObjectId(empId)) {
-                return res.status(400).json({
-                    success: false,
-                    message: `מזהה עובד לא תקין: ${empId}`,
-                });
-            }
+        if (!uniqueEmployeeIds.every(id => mongoose.isValidObjectId(id))) {
+            return res.status(400).json({
+                success: false,
+                message: 'אחד או יותר ממזהי העובדים לא תקינים',
+            });
         }
 
         if (uniqueEmployeeIds.length > 0) {
             const existingCount = await User.countDocuments({
                 _id: { $in: uniqueEmployeeIds },
-            });
+            }).session(session);
             if (existingCount !== uniqueEmployeeIds.length) {
                 return res.status(400).json({
                     success: false,
@@ -288,30 +350,34 @@ export const updateShifts = async (req: Request, res: Response) => {
             }
         }
 
-        // Replace shifts and persist
-        schedule.shifts = shifts.map(shift => ({
-            date: new Date(shift.date),
-            type: shift.type,
-            employees: shift.employees.map(id => new mongoose.Types.ObjectId(id)),
-        }));
+        let updatedSchedule;
+        await session.withTransaction(async () => {
+            // Replace shifts and persist
+            schedule.shifts = shifts.map(shift => ({
+                date: new Date(shift.date),
+                type: shift.type,
+                employees: shift.employees.map(id => new mongoose.Types.ObjectId(id)),
+            })) as any;
 
-        await schedule.save();
+            await schedule.save({ session });
 
-        // שלח התראות לכל העובדים הפעילים אם הסידור כבר פורסם
-        if (schedule.isPublished) {
-            const activeUsers = await User.find({ isActive: true }).select('_id');
-            const notifications = activeUsers.map(user => ({
-                userId: user._id,
-                type: 'schedule_updated' as const,
-                message: 'סידור העבודה עודכן על ידי המנהל — בדוק את השינויים',
-                weekId,
-                isRead: false,
-            }));
-            await Notification.insertMany(notifications);
-        }
+            // שלח התראות לכל העובדים הפעילים אם הסידור כבר פורסם
+            if (schedule.isPublished) {
+                const activeUsers = await User.find({ isActive: true }).session(session).select('_id');
+                const notifications = activeUsers.map(user => ({
+                    userId: user._id,
+                    type: 'schedule_updated' as const,
+                    message: 'סידור העבודה עודכן על ידי המנהל — בדוק את השינויים',
+                    weekId,
+                    isRead: false,
+                }));
+                await Notification.insertMany(notifications, { session });
+            }
 
-        const updatedSchedule = await Schedule.findById(schedule._id)
-            .populate('shifts.employees', 'name');
+            updatedSchedule = await Schedule.findById(schedule._id)
+                .populate('shifts.employees', 'name')
+                .session(session);
+        });
 
         return res.status(200).json({ success: true, data: updatedSchedule });
     } catch (error) {
@@ -323,5 +389,7 @@ export const updateShifts = async (req: Request, res: Response) => {
         }
         console.error('Error updating shifts:', error);
         return res.status(500).json({ success: false, message: 'Internal server error' });
+    } finally {
+        await session.endSession();
     }
 };

@@ -1,4 +1,5 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
+import { AuthRequest } from '../types/express';
 import { Notification } from '../models/Notification';
 
 /**
@@ -9,9 +10,9 @@ import { Notification } from '../models/Notification';
  * @param req - { user: { userId: string } }
  * @param res - { notifications: INotification[], unreadCount: number }
  */
-export const getNotifications = async (req: Request, res: Response) => {
+export const getNotifications = async (req: AuthRequest, res: Response) => {
     try {
-        const userId = (req as any).user?.userId;
+        const userId = req.user?.userId;
 
         const notifications = await Notification.find({ userId, isRead: false })
             .sort({ createdAt: -1 });
@@ -39,9 +40,9 @@ export const getNotifications = async (req: Request, res: Response) => {
  * @param req - { params: { id: string }, user: { userId: string } }
  * @param res - the updated notification document
  */
-export const markAsRead = async (req: Request, res: Response) => {
+export const markAsRead = async (req: AuthRequest, res: Response) => {
     try {
-        const userId = (req as any).user?.userId;
+        const userId = req.user?.userId;
         const { id } = req.params;
 
         // מציאת ההתראה עם בדיקת בעלות

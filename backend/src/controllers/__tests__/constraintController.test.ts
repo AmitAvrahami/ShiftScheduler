@@ -59,9 +59,9 @@ describe('Constraint Controller', () => {
     describe('POST /api/constraints', () => {
         it('returns 200 on valid submission', async () => {
             const payload = {
-                weekId: '2026-W11',
+                weekId: '2030-W10',
                 constraints: [
-                    { date: '2026-03-08T00:00:00.000Z', shift: 'morning', canWork: true }
+                    { date: '2030-03-03T00:00:00.000Z', shift: 'morning', canWork: true }
                 ]
             };
             const res = await request(app)
@@ -72,7 +72,7 @@ describe('Constraint Controller', () => {
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
 
-            const saved = await Constraint.findOne({ userId: employeeId1, weekId: '2026-W11' });
+            const saved = await Constraint.findOne({ userId: employeeId1, weekId: '2030-W10' });
             expect(saved).toBeDefined();
             expect(saved?.constraints.length).toBe(1);
         });
@@ -117,8 +117,8 @@ describe('Constraint Controller', () => {
 
         it('upsert works: submitting twice for same weekId replaces constraints', async () => {
             const payload1 = {
-                weekId: '2026-W11',
-                constraints: [{ date: '2026-03-08T00:00:00.000Z', shift: 'morning', canWork: true }]
+                weekId: '2030-W10',
+                constraints: [{ date: '2030-03-03T00:00:00.000Z', shift: 'morning', canWork: true }]
             };
             await request(app)
                 .post('/api/constraints')
@@ -126,8 +126,8 @@ describe('Constraint Controller', () => {
                 .send(payload1);
 
             const payload2 = {
-                weekId: '2026-W11',
-                constraints: [{ date: '2026-03-08T00:00:00.000Z', shift: 'afternoon', canWork: false }]
+                weekId: '2030-W10',
+                constraints: [{ date: '2030-03-03T00:00:00.000Z', shift: 'afternoon', canWork: false }]
             };
             const res2 = await request(app)
                 .post('/api/constraints')
@@ -136,7 +136,7 @@ describe('Constraint Controller', () => {
 
             expect(res2.status).toBe(200);
 
-            const saved = await Constraint.findOne({ userId: employeeId1, weekId: '2026-W11' });
+            const saved = await Constraint.findOne({ userId: employeeId1, weekId: '2030-W10' });
             expect(saved?.constraints.length).toBe(1);
             expect(saved?.constraints[0].shift).toBe('afternoon');
             expect(saved?.constraints[0].canWork).toBe(false);

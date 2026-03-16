@@ -15,6 +15,7 @@ import {
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { scheduleAPI, usersAPI, constraintAPI, SaveShiftsPayload } from '../lib/api';
+import { ConstraintTooltip } from '../components/ui/ConstraintTooltip';
 import { getCurrentWeekId, getWeekDates, getWeekId, getWeekNumber, formatWeekDateRange } from '../utils/weekUtils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -84,10 +85,16 @@ function toDateKey(date: Date): string {
 
 /**
  * Derives the canonicalized date key from a shift's date field.
- * Handles both full ISO strings and YYYY-MM-DD strings.
+ * Uses LOCAL time (same as toDateKey) so that dates stored as UTC midnight
+ * or local midnight are both correctly mapped to the local calendar day.
+ * e.g. "2026-03-13T22:00:00.000Z" (Saturday midnight IST) → "2026-03-14"
  */
 function shiftDateKey(dateValue: string): string {
-    return dateValue.split('T')[0];
+    const d = new Date(dateValue);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 /**
@@ -174,7 +181,6 @@ function EmployeeCard({
                 ${isDragging && !isDragOverlay ? 'opacity-40 scale-95' : 'opacity-100'}
             `}
             {...(isDragOverlay || isPublished ? {} : { ...attributes, ...listeners })}
-            title={hasConstraint ? 'לעובד זה יש אילוץ למשמרת זו' : undefined}
         >
             {/* Drag handle */}
             {!isPublished && (
@@ -185,9 +191,11 @@ function EmployeeCard({
 
             {/* Constraint warning icon */}
             {hasConstraint && (
-                <span className="text-red-500 text-[10px]" title="לעובד זה יש אילוץ למשמרת זו">
-                    ⚠️
-                </span>
+                <ConstraintTooltip
+                    level="critical"
+                    reason={`${employee.name} הצהיר/ה שאינו/ה יכול/ה לעבוד במשמרת זו`}
+                    action="העבר למשמרת אחרת או אשר עקיפת האילוץ"
+                />
             )}
 
             <span>{employee.name}</span>
@@ -256,7 +264,11 @@ function SidebarEmployeeCard({
             <span className="text-gray-500">👤</span>
             <span className="flex-1">{employee.name}</span>
             {hasAnyConstraint && (
-                <span className="text-amber-500 text-xs" title="לעובד יש אילוצים השבוע">⚠️</span>
+                <ConstraintTooltip
+                    level="warning"
+                    reason={`${employee.name} הצהיר/ה שאינו/ה יכול/ה לעבוד בחלק ממשמרות השבוע`}
+                    action="בדוק אילו משמרות חסומות לפני שיבוץ"
+                />
             )}
         </div>
     );
@@ -320,7 +332,13 @@ function ShiftCell({
         >
             {/* Coverage indicator */}
             <div className={`text-[10px] font-semibold rounded-full px-1.5 py-0.5 inline-flex items-center gap-0.5 mb-1 ${coverageBadgeClass}`}>
-                {count < required && <span>⚠</span>}
+                {count < required && (
+                    <ConstraintTooltip
+                        level="critical"
+                        reason={`חסר/ים ${required - count} עובד/ים — לא עומד בדרישת המינימום`}
+                        action="גרור עובדים נוספים מהעמודה הצדדית"
+                    />
+                )}
                 {count}/{required}
             </div>
 
@@ -458,8 +476,10 @@ export default function ScheduleManagerPage() {
     const [isGenerating, setIsGenerating] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [isEditingPublished, setIsEditingPublished] = useState(false);
     const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
     const [warnings, setWarnings] = useState<string[]>([]);
@@ -661,6 +681,26 @@ export default function ScheduleManagerPage() {
             showToast(message, 'error');
         } finally {
             setIsPublishing(false);
+        }
+    };
+
+    // ── Delete schedule ───────────────────────────────────────────────────────
+    const handleDelete = async () => {
+        setShowDeleteConfirm(false);
+        setIsDeleting(true);
+        try {
+            await scheduleAPI.deleteSchedule(weekId);
+            setSchedule(null);
+            setEditorShifts([]);
+            setOriginalShifts([]);
+            setHistory([]);
+            setWarnings([]);
+            showToast('הסידור נמחק בהצלחה. העובדים קיבלו התראה.', 'success');
+        } catch (err: unknown) {
+            const message = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'שגיאה במחיקת הסידור';
+            showToast(message, 'error');
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -916,6 +956,13 @@ export default function ScheduleManagerPage() {
     // true when schedule is published AND the manager has not clicked "Edit Arrangement"
     const isReadOnly = isPublished && !isEditingPublished;
 
+    // Can delete if schedule exists AND the week is current or in the future
+    const weekEndDate = weekDates.length > 0 ? weekDates[weekDates.length - 1] : null;
+    const todayMidnight = new Date();
+    todayMidnight.setHours(0, 0, 0, 0);
+    const isCurrentOrFutureWeek = weekEndDate ? weekEndDate >= todayMidnight : false;
+    const canDelete = hasSchedule && isCurrentOrFutureWeek;
+
     // ── Render ────────────────────────────────────────────────────────────────
     return (
         <div className="min-h-screen bg-gray-50" dir="rtl">
@@ -1048,6 +1095,22 @@ export default function ScheduleManagerPage() {
                                 '✓ הסידור פורסם'
                             ) : 'פרסם סידור'}
                         </button>
+
+                        {/* Delete — shown only when a current/future schedule exists */}
+                        {canDelete && (
+                            <button
+                                onClick={() => setShowDeleteConfirm(true)}
+                                disabled={isDeleting || isLoadingSchedule}
+                                className="px-4 py-2 text-sm bg-red-600 text-white font-medium rounded-lg shadow-sm hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                title="מחק את הסידור לשבוע זה"
+                            >
+                                {isDeleting ? (
+                                    <span className="flex items-center gap-2">
+                                        <span className="animate-spin">⟳</span> מוחק...
+                                    </span>
+                                ) : '🗑 מחק סידור'}
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -1247,6 +1310,32 @@ export default function ScheduleManagerPage() {
                                 className="px-4 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg font-medium transition-colors"
                             >
                                 כן, צור מחדש
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Delete confirmation dialog ─────────────────────────────────── */}
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4" dir="rtl">
+                        <h2 className="text-lg font-bold text-red-700">מחיקת סידור עבודה</h2>
+                        <p className="text-gray-600 text-sm">
+                            האם למחוק את הסידור לשבוע זה? כל העובדים יקבלו התראה על הביטול.
+                        </p>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={() => setShowDeleteConfirm(false)}
+                                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+                            >
+                                ביטול
+                            </button>
+                            <button
+                                onClick={handleDelete}
+                                className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-lg font-medium transition-colors"
+                            >
+                                כן, מחק
                             </button>
                         </div>
                     </div>

@@ -1,12 +1,17 @@
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 
-let mongoServer: MongoMemoryServer;
+let mongoServer: MongoMemoryReplSet;
 
 jest.setTimeout(60000); // 60 seconds
 
+// Suppress verbose debug logs from the CSP algorithm during test runs
+jest.spyOn(console, 'debug').mockImplementation(() => {});
+
 beforeAll(async () => {
-    mongoServer = await MongoMemoryServer.create();
+    // Use a single-node replica set so mongoose transactions (withTransaction) work in tests.
+    // MongoMemoryReplSet manages its own temp directory automatically.
+    mongoServer = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
     const mongoUri = mongoServer.getUri();
     await mongoose.connect(mongoUri);
 });

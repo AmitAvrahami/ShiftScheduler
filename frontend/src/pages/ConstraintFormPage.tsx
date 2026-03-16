@@ -14,6 +14,9 @@ const DAYS_HEBREW = [
     'ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'
 ];
 
+const toDateKey = (d: Date): string =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 interface ConstraintEntry {
     date: string; // ISO string
     shift: string;
@@ -49,7 +52,7 @@ export default function ConstraintFormPage() {
 
             if (res.data.data) {
                 setConstraints(res.data.data.constraints.map((c: any) => ({
-                    date: new Date(c.date).toISOString(),
+                    date: toDateKey(new Date(c.date)),
                     shift: c.shift,
                     canWork: c.canWork
                 })));
@@ -203,7 +206,7 @@ export default function ConstraintFormPage() {
                     </div>
                     <div className="divide-y divide-slate-200">
                         {dates.map((date, index) => {
-                            const dateStr = date.toISOString();
+                            const dateStr = toDateKey(date);
                             const dayName = DAYS_HEBREW[index];
                             const dateLabel = `${date.getDate()}/${date.getMonth() + 1}`;
 
