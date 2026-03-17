@@ -5,7 +5,7 @@ interface User {
     _id: string;
     name: string;
     email: string;
-    role: 'manager' | 'employee';
+    role: 'manager' | 'employee' | 'admin';
     isFixedMorning?: boolean;
 }
 

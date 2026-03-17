@@ -8,7 +8,7 @@ const router = Router();
 // GET /api/users — active users only (used by schedule/constraint pages)
 router.get('/', authenticate, managerMiddleware, async (_req: Request, res: Response) => {
     try {
-        const users = await User.find({ isActive: true }).select('_id name email role isFixedMorning isActive');
+        const users = await User.find({ isActive: true, role: { $ne: 'admin' } }).select('_id name email role isFixedMorning isActive');
         res.json({ success: true, data: users });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Failed to fetch users' });

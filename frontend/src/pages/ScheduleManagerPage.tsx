@@ -23,6 +23,7 @@ import { getCurrentWeekId, getWeekDates, getWeekId, getWeekNumber, formatWeekDat
 interface EmployeeBasic {
     _id: string;
     name: string;
+    role?: string;
 }
 
 type ShiftType = 'morning' | 'afternoon' | 'night';
@@ -704,7 +705,7 @@ export default function ScheduleManagerPage() {
 
             // ── Employees ────────────────────────────────────────────────────
             if (usersRes.status === 'fulfilled') {
-                setAllEmployees(usersRes.value.data.data ?? []);
+                setAllEmployees((usersRes.value.data.data ?? []).filter((u: EmployeeBasic) => u.role !== 'admin'));
             }
 
             // ── Constraints ──────────────────────────────────────────────────

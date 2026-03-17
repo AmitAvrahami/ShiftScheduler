@@ -155,7 +155,7 @@ export async function generateWeekSchedule(
 ): Promise<{ shifts: IShift[]; warnings: string[]; partialAssignments: PartialAssignment[]; constraintViolationReport: ConstraintViolationReport }> {
     const warnings: string[] = [];
 
-    const activeUsers = await User.find({ isActive: true }).lean<(IUser & { _id: Types.ObjectId })[]>();
+    const activeUsers = await User.find({ isActive: true, role: { $ne: 'admin' } }).lean<(IUser & { _id: Types.ObjectId })[]>();
     const constraintDocs = await Constraint.find({ weekId }).lean<IConstraint[]>();
 
     const hasLockedConstraints = constraintDocs.some(c => c.isLocked);

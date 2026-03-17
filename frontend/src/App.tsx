@@ -8,12 +8,14 @@ import ScheduleManagerPage from './pages/ScheduleManagerPage';
 import MySchedulePage from './pages/MySchedulePage';
 import ScheduleViewPage from './pages/ScheduleViewPage';
 import EmployeeManagementPage from './pages/EmployeeManagementPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { useAuthStore } from './store/authStore';
 
 function App() {
     const { isAuthenticated, user } = useAuthStore();
-    const isManager = user?.role === 'manager';
+    const isManager = user?.role === 'manager' || user?.role === 'admin';
+    const isAdmin = user?.role === 'admin';
 
     return (
         <BrowserRouter>
@@ -65,6 +67,13 @@ function App() {
                 <Route path="/manager/employees" element={
                     <ProtectedRoute>
                         {isManager ? <EmployeeManagementPage /> : <Navigate to="/dashboard" replace />}
+                    </ProtectedRoute>
+                } />
+
+                {/* Admin-only control panel */}
+                <Route path="/admin" element={
+                    <ProtectedRoute>
+                        {isAdmin ? <AdminDashboardPage /> : <Navigate to="/dashboard" replace />}
                     </ProtectedRoute>
                 } />
 

@@ -143,4 +143,46 @@ export const notificationAPI = {
         api.patch(`/notifications/${id}/read`),
 };
 
+export const adminAPI = {
+    getStats: () =>
+        api.get('/admin/stats'),
+    getAllUsers: () =>
+        api.get('/admin/users'),
+    createUser: (data: {
+        name: string;
+        email: string;
+        password: string;
+        role: 'employee' | 'manager' | 'admin';
+        isFixedMorning?: boolean;
+        isActive?: boolean;
+    }) => api.post('/admin/users', data),
+    updateUser: (id: string, data: {
+        name?: string;
+        email?: string;
+        password?: string;
+        role?: 'employee' | 'manager' | 'admin';
+        isFixedMorning?: boolean;
+        isActive?: boolean;
+    }) => api.patch(`/admin/users/${id}`, data),
+    deleteUser: (id: string, hard = false) =>
+        api.delete(`/admin/users/${id}${hard ? '?hard=true' : ''}`),
+    getAllConstraints: (weekId?: string) =>
+        api.get('/admin/constraints', { params: weekId ? { weekId } : {} }),
+    overrideConstraint: (
+        userId: string,
+        weekId: string,
+        constraints: Array<{
+            date: string;
+            shift: 'morning' | 'afternoon' | 'night';
+            canWork: boolean;
+            availableFrom?: string | null;
+            availableTo?: string | null;
+        }>
+    ) => api.patch(`/admin/constraints/${userId}/${weekId}`, { constraints }),
+    getAllSchedules: () =>
+        api.get('/admin/schedules'),
+    forceDeleteSchedule: (weekId: string) =>
+        api.delete(`/admin/schedules/${weekId}`),
+};
+
 export default api;

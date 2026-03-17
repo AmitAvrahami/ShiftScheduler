@@ -9,6 +9,7 @@ import userRoutes from './routes/user.routes';
 import constraintRoutes from './routes/constraint.routes';
 import scheduleRoutes from './routes/schedule.routes';
 import notificationRoutes from './routes/notification.routes';
+import adminRoutes from './routes/admin.routes';
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/constraints', constraintRoutes);
 app.use('/api/schedules', scheduleRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Error Handling
 app.use(errorHandler);

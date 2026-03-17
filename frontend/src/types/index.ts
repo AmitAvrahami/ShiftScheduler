@@ -2,9 +2,18 @@ export interface User {
     _id: string;
     name: string;
     email: string;
-    role: 'manager' | 'employee';
+    role: 'manager' | 'employee' | 'admin';
     isActive: boolean;
     isFixedMorning: boolean;
+}
+
+export interface AdminStats {
+    totalUsers: number;
+    activeManagers: number;
+    activeEmployees: number;
+    totalSchedules: number;
+    publishedSchedules: number;
+    totalConstraints: number;
 }
 
 export interface Constraint {

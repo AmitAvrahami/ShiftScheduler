@@ -91,6 +91,9 @@ export default function ManagerDashboard() {
                         <Link to="/manager/schedule" className="text-blue-600 hover:text-blue-800 font-medium">ניהול סידור</Link>
                         <Link to="/manager/employees" className="text-blue-600 hover:text-blue-800 font-medium">ניהול עובדים</Link>
                         <Link to="/schedule" className="text-blue-600 hover:text-blue-800 font-medium">סידור עבודה</Link>
+                        {user?.role === 'admin' && (
+                            <Link to="/admin" className="text-purple-600 hover:text-purple-800 font-semibold border border-purple-300 rounded px-2 py-0.5">לוח מנהל-על</Link>
+                        )}
                         <NotificationBell />
                         <span className="text-gray-700">שלום, {user?.name}</span>
                         <button
