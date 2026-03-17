@@ -2,6 +2,54 @@ import axios from 'axios';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export interface PartialAssignment {
+    employeeId: string;
+    employeeName: string;
+    dateKey: string;
+    shiftType: 'morning' | 'afternoon' | 'night';
+    gapDescription: string;
+    action: 'cover_start' | 'cover_end';
+    missingMinutes: number;
+}
+
+export interface CriticalViolation {
+    dateKey: string;
+    shiftType: 'morning' | 'afternoon' | 'night';
+    filled: number;
+    required: number;
+    missing: number;
+}
+
+export interface SequenceWarning {
+    employeeName: string;
+    employeeId: string;
+    fromShift: 'morning' | 'afternoon' | 'night';
+    fromDate: string;
+    toShift: 'morning' | 'afternoon' | 'night';
+    toDate: string;
+    /** Minimum rest between the two shifts, in hours */
+    restHours: number;
+}
+
+export interface FairnessWarning {
+    employeeName: string;
+    employeeId: string;
+    metric: 'nightShifts' | 'weekendShifts';
+    employeeCount: number;
+    averageCount: number;
+    deviationPercent: number;
+}
+
+export interface ConstraintViolationReport {
+    criticalViolations: CriticalViolation[];
+    softWarnings: PartialAssignment[];
+    /** Tight turnaround warnings (e.g. afternoon → next-day morning = 8h rest) */
+    sequenceWarnings: SequenceWarning[];
+    /** Employees with >30% more night or weekend shifts than average */
+    fairnessWarnings: FairnessWarning[];
+    totalViolations: number;
+}
+
 /** Payload shape for saving draft schedule edits */
 export interface SaveShiftsPayload {
     shifts: {

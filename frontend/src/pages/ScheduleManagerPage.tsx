@@ -14,7 +14,7 @@ import {
     useDraggable,
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { scheduleAPI, usersAPI, constraintAPI, SaveShiftsPayload } from '../lib/api';
+import { scheduleAPI, usersAPI, constraintAPI, SaveShiftsPayload, PartialAssignment, ConstraintViolationReport, FairnessWarning } from '../lib/api';
 import { ConstraintTooltip } from '../components/ui/ConstraintTooltip';
 import { getCurrentWeekId, getWeekDates, getWeekId, getWeekNumber, formatWeekDateRange } from '../utils/weekUtils';
 
@@ -44,9 +44,13 @@ interface ScheduleData {
  * Maps "date|type" → array of constraint records.
  * canWork=false means the employee has declared they cannot work that shift.
  */
+type ConstraintState = 'none' | 'partial' | 'full';
+
 interface ConstraintEntry {
     userId: string;
     canWork: boolean;
+    availableFrom?: string | null;
+    availableTo?: string | null;
 }
 type ConstraintMap = Record<string, ConstraintEntry[]>;
 
@@ -81,6 +85,16 @@ function toDateKey(date: Date): string {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+}
+
+/**
+ * Shifts a YYYY-MM-DD dateKey by `days` days (positive = forward, negative = backward).
+ * Uses noon to avoid DST edge cases.
+ */
+function offsetDateKey(dateKey: string, days: number): string {
+    const d = new Date(dateKey + 'T12:00:00');
+    d.setDate(d.getDate() + days);
+    return toDateKey(d);
 }
 
 /**
@@ -148,14 +162,16 @@ function cloneShifts(shifts: EditorShift[]): EditorShift[] {
 function EmployeeCard({
     id,
     employee,
-    hasConstraint,
+    constraintState,
+    constraintGap,
     isPublished,
     onRemove,
     isDragOverlay = false,
 }: {
     id: string;
     employee: EmployeeBasic;
-    hasConstraint: boolean;
+    constraintState: ConstraintState;
+    constraintGap?: string;
     isPublished: boolean;
     onRemove?: () => void;
     isDragOverlay?: boolean;
@@ -166,6 +182,11 @@ function EmployeeCard({
         ? { transform: CSS.Transform.toString(transform) }
         : { transform: CSS.Transform.toString(transform) };
 
+    const colorClass =
+        constraintState === 'full'    ? 'bg-red-100 text-red-800 border border-red-300' :
+        constraintState === 'partial' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                                        'bg-indigo-100 text-indigo-800 border border-indigo-200 hover:bg-indigo-200';
+
     return (
         <div
             ref={isDragOverlay || isPublished ? undefined : setNodeRef}
@@ -174,10 +195,7 @@ function EmployeeCard({
                 flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium
                 select-none transition-all
                 ${!isPublished ? 'cursor-grab active:cursor-grabbing' : ''}
-                ${hasConstraint
-                    ? 'bg-red-100 text-red-800 border border-red-300'
-                    : 'bg-indigo-100 text-indigo-800 border border-indigo-200 hover:bg-indigo-200'
-                }
+                ${colorClass}
                 ${isDragging && !isDragOverlay ? 'opacity-40 scale-95' : 'opacity-100'}
             `}
             {...(isDragOverlay || isPublished ? {} : { ...attributes, ...listeners })}
@@ -190,11 +208,18 @@ function EmployeeCard({
             )}
 
             {/* Constraint warning icon */}
-            {hasConstraint && (
+            {constraintState === 'full' && (
                 <ConstraintTooltip
                     level="critical"
                     reason={`${employee.name} הצהיר/ה שאינו/ה יכול/ה לעבוד במשמרת זו`}
                     action="העבר למשמרת אחרת או אשר עקיפת האילוץ"
+                />
+            )}
+            {constraintState === 'partial' && (
+                <ConstraintTooltip
+                    level="warning"
+                    reason={`${employee.name} זמין/ה באופן חלקי${constraintGap ? ` — פער: ${constraintGap}` : ''}`}
+                    action="ודא כיסוי לשעות החסרות"
                 />
             )}
 
@@ -351,14 +376,23 @@ function ShiftCell({
                     const constraintKey = `${dateKey}|${shiftType}`;
                     const cellConstraints = constraints[constraintKey] ?? [];
                     const empConstraint = cellConstraints.find(c => c.userId === emp._id);
-                    const hasConstraint = empConstraint?.canWork === false;
+                    const constraintState: ConstraintState =
+                        empConstraint?.canWork === false ? 'full' :
+                        (empConstraint?.availableFrom || empConstraint?.availableTo) ? 'partial' :
+                        'none';
+                    const constraintGap = empConstraint?.availableFrom
+                        ? `מ-${empConstraint.availableFrom}`
+                        : empConstraint?.availableTo
+                            ? `עד ${empConstraint.availableTo}`
+                            : undefined;
 
                     return (
                         <EmployeeCard
                             key={emp._id}
                             id={`cell-${dateKey}-${shiftType}-${emp._id}`}
                             employee={emp}
-                            hasConstraint={hasConstraint}
+                            constraintState={constraintState}
+                            constraintGap={constraintGap}
                             isPublished={isPublished}
                             onRemove={isPublished ? undefined : () => onRemoveEmployee(emp._id)}
                         />
@@ -397,28 +431,39 @@ function TrashZone({ overId }: { overId: string | null }) {
 
 /**
  * Styled confirmation modal for constraint violations.
- * Shown when a manager drops an employee onto a shift they declared unavailability for.
+ * Shown when a manager drops an employee onto a shift they declared unavailability for,
+ * or when a drag-and-drop move would violate the rest rule (night→morning with 0h gap).
+ *
+ * Uses Strategy pattern via `violationType` to display context-specific messaging.
  */
 function ConstraintWarningModal({
     employeeName,
+    violationType,
     onConfirm,
     onCancel,
 }: {
     employeeName: string;
+    violationType: 'constraint' | 'rest_rule';
     onConfirm: () => void;
     onCancel: () => void;
 }) {
+    const title = violationType === 'rest_rule' ? 'הפרת מנוחה' : 'אילוץ משמרת';
+    const icon = violationType === 'rest_rule' ? '🛑' : '⚠️';
+    const message = violationType === 'rest_rule'
+        ? <>ל<strong>{employeeName}</strong> תסתיים משמרת לילה ב-06:45 — ומשמרת בוקר מתחילה ב-06:45. אין זמן מנוחה בין המשמרות. האם להוסיף בכל זאת?</>
+        : <>ל<strong>{employeeName}</strong> יש אילוץ למשמרת זו — הם הצהירו שלא יכולים לעבוד. האם להוסיף אותם בכל זאת?</>;
+    const confirmColor = violationType === 'rest_rule'
+        ? 'bg-red-500 hover:bg-red-600'
+        : 'bg-orange-500 hover:bg-orange-600';
+
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4" dir="rtl">
                 <div className="flex items-center gap-3">
-                    <span className="text-2xl">⚠️</span>
-                    <h2 className="text-lg font-bold text-gray-800">אילוץ משמרת</h2>
+                    <span className="text-2xl">{icon}</span>
+                    <h2 className="text-lg font-bold text-gray-800">{title}</h2>
                 </div>
-                <p className="text-gray-600 text-sm">
-                    ל<strong>{employeeName}</strong> יש אילוץ למשמרת זו — הם הצהירו שלא יכולים לעבוד.
-                    האם להוסיף אותם בכל זאת?
-                </p>
+                <p className="text-gray-600 text-sm">{message}</p>
                 <div className="flex gap-3 justify-end">
                     <button
                         onClick={onCancel}
@@ -428,12 +473,132 @@ function ConstraintWarningModal({
                     </button>
                     <button
                         onClick={onConfirm}
-                        className="px-4 py-2 text-white bg-orange-500 hover:bg-orange-600 rounded-lg font-medium transition-colors"
+                        className={`px-4 py-2 text-white ${confirmColor} rounded-lg font-medium transition-colors`}
                     >
                         כן, הוסף בכל זאת
                     </button>
                 </div>
             </div>
+        </div>
+    );
+}
+
+// ─── Priority Alerts Section ──────────────────────────────────────────────────
+
+const ACTION_LABEL: Record<'cover_start' | 'cover_end', string> = {
+    cover_start: 'דרוש כיסוי תחילת משמרת',
+    cover_end: 'דרוש כיסוי סיום משמרת',
+};
+
+function PriorityAlertsSection({ partialAssignments }: { partialAssignments: PartialAssignment[] }) {
+    if (!partialAssignments.length) return null;
+    return (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-2">
+            <p className="font-semibold text-orange-800 text-sm">
+                התראות עדיפות — שיבוצים עם זמינות חלקית ({partialAssignments.length})
+            </p>
+            {partialAssignments.map((pa, i) => (
+                <div key={i} className="flex flex-wrap gap-2 text-xs text-orange-700 bg-white border border-orange-100 rounded px-3 py-2">
+                    <span className="font-semibold">{pa.employeeName}</span>
+                    <span>|</span>
+                    <span>משמרת: {SHIFT_LABELS[pa.shiftType]}</span>
+                    <span>|</span>
+                    <span>פער: {pa.gapDescription}</span>
+                    <span>|</span>
+                    <span className="font-medium">{ACTION_LABEL[pa.action]}</span>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+// ─── System Constraint Alerts Section ─────────────────────────────────────────
+
+function SystemConstraintAlertsSection({ report }: { report: ConstraintViolationReport }) {
+    if (report.totalViolations === 0) return null;
+    return (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-3">
+            <p className="font-semibold text-red-800 text-sm">
+                🔔 התראות אילוץ מערכת — {report.totalViolations} הפרות
+            </p>
+
+            {report.criticalViolations.length > 0 && (
+                <div className="space-y-1.5">
+                    <p className="text-xs font-semibold text-red-700 uppercase tracking-wide">
+                        🔴 הפרות קריטיות — משמרות תת-מאוישות ({report.criticalViolations.length})
+                    </p>
+                    {report.criticalViolations.map((v, i) => (
+                        <div key={i} className="flex flex-wrap gap-2 text-xs text-red-700 bg-white border border-red-100 rounded px-3 py-2">
+                            <span className="font-semibold">משמרת {SHIFT_LABELS[v.shiftType]}</span>
+                            <span>|</span>
+                            <span>{v.dateKey}</span>
+                            <span>|</span>
+                            <span>שובצו {v.filled}/{v.required} — חסרים {v.missing}</span>
+                            <span>|</span>
+                            <span className="font-medium text-red-800">הוסף עובד ידנית</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {report.softWarnings.length > 0 && (
+                <div className="space-y-1.5">
+                    <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
+                        ⚠️ אזהרות זמינות חלקית ({report.softWarnings.length})
+                    </p>
+                    {report.softWarnings.map((w, i) => (
+                        <div key={i} className="flex flex-wrap gap-2 text-xs text-amber-700 bg-white border border-amber-100 rounded px-3 py-2">
+                            <span className="font-semibold">{w.employeeName}</span>
+                            <span>|</span>
+                            <span>משמרת: {SHIFT_LABELS[w.shiftType]}</span>
+                            <span>|</span>
+                            <span>{w.dateKey}</span>
+                            <span>|</span>
+                            <span>פער: {w.gapDescription}</span>
+                            <span>|</span>
+                            <span className="font-medium">{ACTION_LABEL[w.action]}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {report.sequenceWarnings && report.sequenceWarnings.length > 0 && (
+                <div className="space-y-1.5">
+                    <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide">
+                        🔄 מעבר צפוף בין משמרות ({report.sequenceWarnings.length})
+                    </p>
+                    {report.sequenceWarnings.map((sw, i) => (
+                        <div key={i} className="flex flex-wrap gap-2 text-xs text-orange-700 bg-white border border-orange-100 rounded px-3 py-2">
+                            <span className="font-semibold">{sw.employeeName}</span>
+                            <span>|</span>
+                            <span>משמרת {SHIFT_LABELS[sw.fromShift]} ({sw.fromDate})</span>
+                            <span>→</span>
+                            <span>משמרת {SHIFT_LABELS[sw.toShift]} ({sw.toDate})</span>
+                            <span>|</span>
+                            <span className="font-medium">מנוחה: {sw.restHours} שעות בלבד</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {report.fairnessWarnings && report.fairnessWarnings.length > 0 && (
+                <div className="space-y-1.5">
+                    <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide">
+                        ⚖️ אזהרות הוגנות ({report.fairnessWarnings.length})
+                    </p>
+                    {report.fairnessWarnings.map((fw: FairnessWarning, i: number) => (
+                        <div key={i} className="flex flex-wrap gap-2 text-xs text-purple-700 bg-white border border-purple-100 rounded px-3 py-2">
+                            <span className="font-semibold">{fw.employeeName}</span>
+                            <span>|</span>
+                            <span>
+                                {fw.metric === 'nightShifts' ? 'משמרות לילה' : 'משמרות סוף שבוע'}:{' '}
+                                {fw.employeeCount} (ממוצע {fw.averageCount.toFixed(1)}) —{' '}
+                                {fw.deviationPercent.toFixed(0)}% מעל הממוצע
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
@@ -483,6 +648,8 @@ export default function ScheduleManagerPage() {
     const [isEditingPublished, setIsEditingPublished] = useState(false);
     const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
     const [warnings, setWarnings] = useState<string[]>([]);
+    const [partialAssignments, setPartialAssignments] = useState<PartialAssignment[]>([]);
+    const [constraintViolationReport, setConstraintViolationReport] = useState<ConstraintViolationReport | null>(null);
 
     // ── DnD state ──────────────────────────────────────────────────────────────
     const [activeSource, setActiveSource] = useState<DragSource | null>(null);
@@ -496,6 +663,7 @@ export default function ScheduleManagerPage() {
         employee: EmployeeBasic;
         targetCellKey: string;
         sourceCellKey: string | undefined;
+        violationType: 'constraint' | 'rest_rule';
     } | null>(null);
 
     // Dirty flag — true when editor differs from the last saved/generated state
@@ -524,6 +692,8 @@ export default function ScheduleManagerPage() {
         setEditorShifts([]);
         setOriginalShifts([]);
         setIsEditingPublished(false);
+        setPartialAssignments([]);
+        setConstraintViolationReport(null);
 
         try {
             const [scheduleRes, usersRes, constraintsRes] = await Promise.allSettled([
@@ -552,11 +722,16 @@ export default function ScheduleManagerPage() {
                         ? entry.userId._id
                         : entry.userId;
 
-                    entry.constraints.forEach(c => {
+                    entry.constraints.forEach((c: any) => {
                         const dateKey = shiftDateKey(c.date);
                         const mapKey = `${dateKey}|${c.shift}`;
                         if (!constraintMap[mapKey]) constraintMap[mapKey] = [];
-                        constraintMap[mapKey].push({ userId, canWork: c.canWork });
+                        constraintMap[mapKey].push({
+                            userId,
+                            canWork: c.canWork,
+                            availableFrom: c.availableFrom ?? null,
+                            availableTo: c.availableTo ?? null,
+                        });
                     });
                 });
                 setConstraints(constraintMap);
@@ -617,6 +792,8 @@ export default function ScheduleManagerPage() {
     const doGenerate = async () => {
         setIsGenerating(true);
         setWarnings([]);
+        setPartialAssignments([]);
+        setConstraintViolationReport(null);
         try {
             const res = await scheduleAPI.generate(weekId);
             const generatedSchedule: ScheduleData = res.data.data.schedule;
@@ -626,6 +803,8 @@ export default function ScheduleManagerPage() {
             setOriginalShifts(cloneShifts(normalised));
             setHistory([]);
             setWarnings(res.data.data.warnings ?? []);
+            setPartialAssignments(res.data.data.partialAssignments ?? []);
+            setConstraintViolationReport(res.data.data.constraintViolationReport ?? null);
             showToast('הסידור נוצר בהצלחה!', 'success');
         } catch (err: unknown) {
             const message = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'שגיאה ביצירת הסידור';
@@ -695,6 +874,8 @@ export default function ScheduleManagerPage() {
             setOriginalShifts([]);
             setHistory([]);
             setWarnings([]);
+            setPartialAssignments([]);
+            setConstraintViolationReport(null);
             showToast('הסידור נמחק בהצלחה. העובדים קיבלו התראה.', 'success');
         } catch (err: unknown) {
             const message = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'שגיאה במחיקת הסידור';
@@ -918,6 +1099,50 @@ export default function ScheduleManagerPage() {
                     employee: source.employee,
                     targetCellKey: targetId,
                     sourceCellKey: source.kind === 'cell' ? source.cellKey : undefined,
+                    violationType: 'constraint',
+                });
+                return;
+            }
+
+            // Check for rest rule violation (night ↔ morning with 0h gap)
+            const sourceCellKey = source.kind === 'cell' ? source.cellKey : undefined;
+            let hasRestViolation = false;
+
+            if (parsedTarget.shiftType === 'morning') {
+                // Dropping into morning → check if employee is in previous day's night shift
+                const previousDayKey = offsetDateKey(parsedTarget.dateKey, -1);
+                const previousNightCellKey = `cell-${previousDayKey}-night`;
+                // Skip if we're moving FROM that exact night cell (the move resolves the conflict)
+                if (previousNightCellKey !== sourceCellKey) {
+                    const previousNightShift = editorShifts.find(
+                        s => s.date === previousDayKey && s.type === 'night',
+                    );
+                    if (previousNightShift?.employees.some(e => e._id === source.employee._id)) {
+                        hasRestViolation = true;
+                    }
+                }
+            }
+
+            if (parsedTarget.shiftType === 'night') {
+                // Dropping into night → check if employee is in next day's morning shift
+                const nextDayKey = offsetDateKey(parsedTarget.dateKey, 1);
+                const nextMorningCellKey = `cell-${nextDayKey}-morning`;
+                if (nextMorningCellKey !== sourceCellKey) {
+                    const nextMorningShift = editorShifts.find(
+                        s => s.date === nextDayKey && s.type === 'morning',
+                    );
+                    if (nextMorningShift?.employees.some(e => e._id === source.employee._id)) {
+                        hasRestViolation = true;
+                    }
+                }
+            }
+
+            if (hasRestViolation) {
+                setPendingDrop({
+                    employee: source.employee,
+                    targetCellKey: targetId,
+                    sourceCellKey,
+                    violationType: 'rest_rule',
                 });
                 return;
             }
@@ -1150,6 +1375,14 @@ export default function ScheduleManagerPage() {
                     </div>
                 )}
 
+                {/* Partial availability alerts */}
+                <PriorityAlertsSection partialAssignments={partialAssignments} />
+
+                {/* System constraint alerts */}
+                {constraintViolationReport && (
+                    <SystemConstraintAlertsSection report={constraintViolationReport} />
+                )}
+
                 {/* ── Main content ───────────────────────────────────────────── */}
                 {isLoadingSchedule ? (
                     <ScheduleLoadingSkeleton />
@@ -1282,6 +1515,7 @@ export default function ScheduleManagerPage() {
             {pendingDrop && (
                 <ConstraintWarningModal
                     employeeName={pendingDrop.employee.name}
+                    violationType={pendingDrop.violationType}
                     onConfirm={handleConstraintConfirm}
                     onCancel={() => setPendingDrop(null)}
                 />

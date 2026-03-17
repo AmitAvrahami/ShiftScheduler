@@ -7,6 +7,8 @@ export interface IConstraint extends Document {
         date: Date;
         shift: string; // 'morning' | 'afternoon' | 'night'
         canWork: boolean;
+        availableFrom?: string | null;  // "HH:MM", only relevant when canWork=true
+        availableTo?: string | null;    // "HH:MM", only relevant when canWork=true
     }[];
     submittedAt: Date;
     isLocked: boolean;
@@ -22,7 +24,9 @@ const constraintSchema = new Schema<IConstraint>(
             {
                 date: { type: Date, required: true },
                 shift: { type: String, enum: ['morning', 'afternoon', 'night'], required: true },
-                canWork: { type: Boolean, default: false }
+                canWork: { type: Boolean, default: false },
+                availableFrom: { type: String, default: null },
+                availableTo: { type: String, default: null }
             }
         ],
         submittedAt: { type: Date, default: Date.now },

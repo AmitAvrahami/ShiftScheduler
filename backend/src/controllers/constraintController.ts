@@ -4,14 +4,18 @@ import { z } from 'zod';
 import { Constraint } from '../models/Constraint';
 import { getWeekDates } from '../utils/weekUtils';
 
+const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+
 // Define the incoming schema for validation
 const constraintSchema = z.object({
     weekId: z.string().regex(/^\d{4}-W\d{2}$/, "Invalid week format"),
     constraints: z.array(z.object({
         date: z.string().or(z.date()).transform(val => new Date(val)),
         shift: z.enum(['morning', 'afternoon', 'night']),
-        canWork: z.boolean()
-    })).min(1, "Constraints array cannot be empty")
+        canWork: z.boolean(),
+        availableFrom: z.string().regex(timeRegex).nullable().optional(),
+        availableTo:   z.string().regex(timeRegex).nullable().optional(),
+    })).min(0)
 });
 
 export const submitConstraints = async (req: AuthRequest, res: Response) => {

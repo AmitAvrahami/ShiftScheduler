@@ -58,7 +58,7 @@ export const generateSchedule = async (req: Request, res: Response) => {
         }
 
         // הרץ את האלגוריתם (לא שומר ל-DB)
-        const { shifts, warnings } = await generateWeekSchedule(weekId);
+        const { shifts, warnings, partialAssignments, constraintViolationReport } = await generateWeekSchedule(weekId);
 
         const weekStartDate = getWeekDates(weekId)[0];
 
@@ -75,7 +75,7 @@ export const generateSchedule = async (req: Request, res: Response) => {
 
         return res.status(200).json({
             success: true,
-            data: { schedule, warnings },
+            data: { schedule, warnings, partialAssignments, constraintViolationReport },
         });
     } catch (error) {
         if (error instanceof z.ZodError) {

@@ -1,7 +1,7 @@
 import { Types } from 'mongoose';
 import { User } from '../../models/User';
 import { Constraint } from '../../models/Constraint';
-import { buildShiftsFromResult, solveCsp, CSPInput, ConstraintMap } from '../cspScheduler';
+import { buildShiftsFromResult, solveCsp, CSPInput, ConstraintMap, PartialConstraintMap } from '../cspScheduler';
 import { generateWeekSchedule } from '../schedulerService';
 
 /**
@@ -71,6 +71,7 @@ describe('cspScheduler (pure, no DB)', () => {
             slots,
             employees: [manager, emp1, emp2, emp3],
             constraintMap,
+            partialConstraintMap: {},
             weekDates,
         };
 
@@ -92,7 +93,7 @@ describe('cspScheduler (pure, no DB)', () => {
             },
         };
 
-        const result = solveCsp({ slots, employees: [manager, emp1], constraintMap, weekDates });
+        const result = solveCsp({ slots, employees: [manager, emp1], constraintMap, partialConstraintMap: {}, weekDates });
         expect(result.unfilledVars.length).toBeGreaterThan(0);
     });
 
@@ -105,8 +106,8 @@ describe('cspScheduler (pure, no DB)', () => {
             },
         };
 
-        expect(() => solveCsp({ slots, employees: [emp1], constraintMap, weekDates })).not.toThrow();
-        const result = solveCsp({ slots, employees: [emp1], constraintMap, weekDates });
+        expect(() => solveCsp({ slots, employees: [emp1], constraintMap, partialConstraintMap: {}, weekDates })).not.toThrow();
+        const result = solveCsp({ slots, employees: [emp1], constraintMap, partialConstraintMap: {}, weekDates });
         expect(result.unfilledVars.length).toBeGreaterThan(0);
     });
 
@@ -115,7 +116,7 @@ describe('cspScheduler (pure, no DB)', () => {
         const emp2 = makeEmployee({ name: 'Bob' });
         const manager = makeEmployee({ role: 'manager', name: 'Mgr' });
         const slots = makeSingleDaySlots(dateKey, date);
-        const result = solveCsp({ slots, employees: [manager, emp1, emp2], constraintMap: {}, weekDates });
+        const result = solveCsp({ slots, employees: [manager, emp1, emp2], constraintMap: {}, partialConstraintMap: {}, weekDates });
         const shifts = buildShiftsFromResult(result, slots);
 
         expect(shifts).toHaveLength(3);
@@ -131,7 +132,7 @@ describe('cspScheduler (pure, no DB)', () => {
         const emp1 = makeEmployee({ name: 'Alice' });
         const emp2 = makeEmployee({ name: 'Bob' });
         const slots = makeSingleDaySlots(dateKey, date);
-        const result = solveCsp({ slots, employees: [manager, emp1, emp2], constraintMap: {}, weekDates });
+        const result = solveCsp({ slots, employees: [manager, emp1, emp2], constraintMap: {}, partialConstraintMap: {}, weekDates });
         const shifts = buildShiftsFromResult(result, slots);
 
         for (const shift of shifts) {
@@ -146,7 +147,7 @@ describe('cspScheduler (pure, no DB)', () => {
         const emp2 = makeEmployee({ name: 'Bob' });
         const emp3 = makeEmployee({ name: 'Carol' });
         const slots = makeSingleDaySlots(dateKey, date);
-        const result = solveCsp({ slots, employees: [manager, emp1, emp2, emp3], constraintMap: {}, weekDates });
+        const result = solveCsp({ slots, employees: [manager, emp1, emp2, emp3], constraintMap: {}, partialConstraintMap: {}, weekDates });
         const shifts = buildShiftsFromResult(result, slots);
 
         const seenOnDay = new Set<string>();
@@ -155,6 +156,52 @@ describe('cspScheduler (pure, no DB)', () => {
                 const key = `${dateKey}_${empId}`;
                 expect(seenOnDay.has(key)).toBe(false);
                 seenOnDay.add(key);
+            }
+        }
+    });
+
+    it('respects rest rule bidirectionally: no night-before-morning when morning committed first', () => {
+        // Scenario: morning on Day1 is assigned first (larger domain, processed later by MRV in reverse),
+        // then night on Day0 is tried. The bidirectional check must catch night→nextday-morning violation.
+        const emp1 = makeEmployee({ name: 'Alice' });
+        const emp2 = makeEmployee({ name: 'Bob' });
+        const manager = makeEmployee({ role: 'manager', name: 'Mgr' });
+
+        const day0 = new Date('2026-03-08T00:00:00');  // Sunday
+        const day1 = new Date('2026-03-09T00:00:00');  // Monday
+        const weekDates = [day0, day1];
+
+        const slots = [
+            { date: day0, dateKey: localDateKey(day0), type: 'morning' as const, requiredHeadcount: 1 },
+            { date: day0, dateKey: localDateKey(day0), type: 'night' as const, requiredHeadcount: 1 },
+            { date: day1, dateKey: localDateKey(day1), type: 'morning' as const, requiredHeadcount: 1 },
+        ];
+
+        // Block emp2 from all shifts so emp1 is the only regular option everywhere
+        const constraintMap: ConstraintMap = {
+            [emp2._id.toString()]: {
+                [localDateKey(day0)]: { morning: true, night: true },
+                [localDateKey(day1)]: { morning: true },
+            },
+        };
+
+        const result = solveCsp({
+            slots,
+            employees: [manager, emp1, emp2],
+            constraintMap,
+            partialConstraintMap: {},
+            weekDates,
+        });
+        const shifts = buildShiftsFromResult(result, slots);
+
+        const sundayNight = shifts.find(s => s.type === 'night' && localDateKey(s.date) === localDateKey(day0));
+        const mondayMorning = shifts.find(s => s.type === 'morning' && localDateKey(s.date) === localDateKey(day1));
+
+        // No employee should appear in both Sunday-night AND Monday-morning
+        if (sundayNight && mondayMorning) {
+            for (const nightEmpId of sundayNight.employees) {
+                const inMondayMorning = mondayMorning.employees.some(id => id.toString() === nightEmpId.toString());
+                expect(inMondayMorning).toBe(false);
             }
         }
     });
@@ -378,4 +425,5 @@ describe('generateWeekSchedule (CSP integration)', () => {
             expect(empIds.length).toBe(unique.size);
         }
     });
+
 });

@@ -91,9 +91,9 @@ describe('Constraint Controller', () => {
             expect(res.body.success).toBe(false);
         });
 
-        it('returns 400 if constraints array is empty or malformed', async () => {
+        it('returns 200 if constraints array is empty (clears all constraints)', async () => {
             const payload = {
-                weekId: '2026-W11',
+                weekId: '2030-W10',
                 constraints: []
             };
             const res = await request(app)
@@ -101,8 +101,8 @@ describe('Constraint Controller', () => {
                 .set('Authorization', `Bearer ${employeeToken1}`)
                 .send(payload);
 
-            expect(res.status).toBe(400);
-            expect(res.body.success).toBe(false);
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
         });
 
         it('returns 401 if no JWT token provided', async () => {
@@ -141,6 +141,63 @@ describe('Constraint Controller', () => {
             expect(saved?.constraints[0].shift).toBe('afternoon');
             expect(saved?.constraints[0].canWork).toBe(false);
             expect(saved?.submittedAt).toBeDefined();
+        });
+
+        it('accepts a valid partial constraint with availableFrom', async () => {
+            const payload = {
+                weekId: '2030-W11',
+                constraints: [
+                    { date: '2030-03-10T00:00:00.000Z', shift: 'morning', canWork: true, availableFrom: '10:00' }
+                ]
+            };
+            const res = await request(app)
+                .post('/api/constraints')
+                .set('Authorization', `Bearer ${employeeToken1}`)
+                .send(payload);
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+
+            const saved = await Constraint.findOne({ userId: employeeId1, weekId: '2030-W11' });
+            expect(saved?.constraints[0].availableFrom).toBe('10:00');
+        });
+
+        it('returns 400 for invalid time format in availableFrom', async () => {
+            const payload = {
+                weekId: '2030-W11',
+                constraints: [
+                    { date: '2030-03-10T00:00:00.000Z', shift: 'morning', canWork: true, availableFrom: '25:00' }
+                ]
+            };
+            const res = await request(app)
+                .post('/api/constraints')
+                .set('Authorization', `Bearer ${employeeToken1}`)
+                .send(payload);
+
+            expect(res.status).toBe(400);
+            expect(res.body.success).toBe(false);
+        });
+
+        it('round-trip: fetched constraint includes availableFrom and availableTo', async () => {
+            const payload = {
+                weekId: '2030-W12',
+                constraints: [
+                    { date: '2030-03-17T00:00:00.000Z', shift: 'afternoon', canWork: true, availableFrom: '16:00', availableTo: '21:00' }
+                ]
+            };
+            await request(app)
+                .post('/api/constraints')
+                .set('Authorization', `Bearer ${employeeToken1}`)
+                .send(payload);
+
+            const getRes = await request(app)
+                .get('/api/constraints/my/2030-W12')
+                .set('Authorization', `Bearer ${employeeToken1}`);
+
+            expect(getRes.status).toBe(200);
+            const c = getRes.body.data.constraints[0];
+            expect(c.availableFrom).toBe('16:00');
+            expect(c.availableTo).toBe('21:00');
         });
 
         it('returns 403 if the week is locked', async () => {

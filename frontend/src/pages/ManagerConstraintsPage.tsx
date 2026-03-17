@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import api from '../lib/api';
 import { getCurrentWeekId, getWeekDates, getWeekId, getWeekNumber, formatWeekDateRange } from '../utils/weekUtils';
 
+const toDateKey = (d: Date): string =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 const DAYS_HEBREW = [
     'ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'
 ];
@@ -11,6 +14,8 @@ interface ConstraintEntry {
     date: string;
     shift: string;
     canWork: boolean;
+    availableFrom?: string | null;
+    availableTo?: string | null;
 }
 
 interface ActiveUser {
@@ -155,35 +160,40 @@ export default function ManagerConstraintsPage() {
         }
     };
 
+    const SHIFT_LABEL: Record<string, string> = { morning: 'בוקר', afternoon: 'צהריים', night: 'לילה' };
+
     const renderCellBadges = (constraints: ConstraintEntry[], dateStr: string) => {
-        const dayConstraints = constraints.filter(
-            c => new Date(c.date).toISOString().split('T')[0] === dateStr.split('T')[0] && !c.canWork
+        const fullBlocks = constraints.filter(
+            c => toDateKey(new Date(c.date)) === dateStr && !c.canWork
+        );
+        const partialConstraints = constraints.filter(
+            c => toDateKey(new Date(c.date)) === dateStr && c.canWork && (c.availableFrom || c.availableTo)
         );
 
-        if (dayConstraints.length === 0) {
+        if (fullBlocks.length === 0 && partialConstraints.length === 0) {
             return <span className="text-green-500 text-xl font-bold">✓</span>;
         }
 
         return (
             <div className="flex flex-col gap-1 items-center">
-                {dayConstraints.map((c, i) => {
+                {fullBlocks.map((c, i) => {
                     let badgeColor = 'bg-slate-200 text-slate-800';
-                    let label = c.shift;
-
-                    if (c.shift === 'morning') {
-                        badgeColor = 'bg-blue-100 text-blue-800 border-blue-200';
-                        label = 'בוקר';
-                    } else if (c.shift === 'afternoon') {
-                        badgeColor = 'bg-orange-100 text-orange-800 border-orange-200';
-                        label = 'צהריים';
-                    } else if (c.shift === 'night') {
-                        badgeColor = 'bg-purple-100 text-purple-800 border-purple-200';
-                        label = 'לילה';
-                    }
-
+                    if (c.shift === 'morning') badgeColor = 'bg-blue-100 text-blue-800 border-blue-200';
+                    else if (c.shift === 'afternoon') badgeColor = 'bg-orange-100 text-orange-800 border-orange-200';
+                    else if (c.shift === 'night') badgeColor = 'bg-purple-100 text-purple-800 border-purple-200';
                     return (
-                        <span key={i} className={`text-xs px-2 py-0.5 rounded-full border ${badgeColor}`}>
-                            {label}
+                        <span key={`full-${i}`} className={`text-xs px-2 py-0.5 rounded-full border ${badgeColor}`}>
+                            {SHIFT_LABEL[c.shift] ?? c.shift}
+                        </span>
+                    );
+                })}
+                {partialConstraints.map((c, i) => {
+                    const timeNote = c.availableFrom
+                        ? `מ-${c.availableFrom}`
+                        : `עד ${c.availableTo}`;
+                    return (
+                        <span key={`partial-${i}`} className="text-xs px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200">
+                            {SHIFT_LABEL[c.shift] ?? c.shift} | {timeNote}
                         </span>
                     );
                 })}
@@ -308,7 +318,7 @@ export default function ManagerConstraintsPage() {
                                             </div>
                                         </td>
                                         {dates.map((date, index) => {
-                                            const dateStr = date.toISOString();
+                                            const dateStr = toDateKey(date);
                                             return (
                                                 <td key={index} className="px-4 py-3 text-center align-middle border-l border-slate-200 last:border-0 bg-white">
                                                     <div className="min-h-[60px] flex items-center justify-center">

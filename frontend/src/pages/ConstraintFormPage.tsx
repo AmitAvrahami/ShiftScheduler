@@ -21,6 +21,8 @@ interface ConstraintEntry {
     date: string; // ISO string
     shift: string;
     canWork: boolean;
+    availableFrom?: string | null;
+    availableTo?: string | null;
 }
 
 export default function ConstraintFormPage() {
@@ -29,6 +31,7 @@ export default function ConstraintFormPage() {
     const [weekId, setWeekId] = useState<string>(getCurrentWeekId());
     const [dates, setDates] = useState<Date[]>([]);
     const [constraints, setConstraints] = useState<ConstraintEntry[]>([]);
+    const [partialExpanded, setPartialExpanded] = useState<Record<string, boolean>>({});
     const [isLocked, setIsLocked] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
@@ -51,14 +54,26 @@ export default function ConstraintFormPage() {
             const res = await api.get(`/constraints/my/${weekId}`);
 
             if (res.data.data) {
-                setConstraints(res.data.data.constraints.map((c: any) => ({
+                const mapped = res.data.data.constraints.map((c: any) => ({
                     date: toDateKey(new Date(c.date)),
                     shift: c.shift,
-                    canWork: c.canWork
-                })));
+                    canWork: c.canWork,
+                    availableFrom: c.availableFrom ?? null,
+                    availableTo: c.availableTo ?? null,
+                }));
+                setConstraints(mapped);
+                // Auto-expand partial time forms for entries that already have partial times
+                const expanded: Record<string, boolean> = {};
+                mapped.forEach((c: ConstraintEntry) => {
+                    if (c.canWork && (c.availableFrom || c.availableTo)) {
+                        expanded[`${c.date}_${c.shift}`] = true;
+                    }
+                });
+                setPartialExpanded(expanded);
                 setIsLocked(res.data.data.isLocked);
             } else {
                 setConstraints([]);
+                setPartialExpanded({});
                 setIsLocked(false);
             }
         } catch (error) {
@@ -94,20 +109,58 @@ export default function ConstraintFormPage() {
 
     const handleToggle = (dateStr: string, shiftId: string) => {
         if (readOnly) return;
-
+        const key = `${dateStr}_${shiftId}`;
         setConstraints(prev => {
             const existsIndex = prev.findIndex(c => c.date === dateStr && c.shift === shiftId);
             if (existsIndex >= 0) {
+                // Unchecking blocked — remove the entry entirely
                 return prev.filter((_, i) => i !== existsIndex);
             } else {
-                return [...prev, { date: dateStr, shift: shiftId, canWork: false }];
+                // Checking blocked — remove any partial entry first, then add blocked
+                const withoutPartial = prev.filter(c => !(c.date === dateStr && c.shift === shiftId));
+                return [...withoutPartial, { date: dateStr, shift: shiftId, canWork: false }];
             }
+        });
+        // Collapse partial form when marking as fully blocked
+        setPartialExpanded(prev => ({ ...prev, [key]: false }));
+    };
+
+    const togglePartial = (dateStr: string, shiftId: string) => {
+        if (readOnly) return;
+        const key = `${dateStr}_${shiftId}`;
+        const isOpen = partialExpanded[key];
+        if (isOpen) {
+            // Closing — clear partial time fields and remove entry if it becomes empty
+            setConstraints(prev =>
+                prev
+                    .map(c => c.date === dateStr && c.shift === shiftId
+                        ? { ...c, availableFrom: null, availableTo: null }
+                        : c)
+                    .filter(c => !(c.date === dateStr && c.shift === shiftId && c.canWork))
+            );
+        }
+        setPartialExpanded(prev => ({ ...prev, [key]: !isOpen }));
+    };
+
+    const handlePartialTime = (dateStr: string, shiftId: string, field: 'availableFrom' | 'availableTo', value: string) => {
+        if (readOnly) return;
+        const timeValue = value || null;
+        setConstraints(prev => {
+            const existsIndex = prev.findIndex(c => c.date === dateStr && c.shift === shiftId);
+            if (existsIndex >= 0) {
+                return prev.map((c, i) => i === existsIndex ? { ...c, [field]: timeValue } : c);
+            }
+            // No entry yet — create a canWork: true partial entry
+            return [...prev, { date: dateStr, shift: shiftId, canWork: true, [field]: timeValue }];
         });
     };
 
     const isChecked = (dateStr: string, shiftId: string) => {
         return constraints.some(c => c.date === dateStr && c.shift === shiftId && !c.canWork);
     };
+
+    const getPartialEntry = (dateStr: string, shiftId: string) =>
+        constraints.find(c => c.date === dateStr && c.shift === shiftId && c.canWork);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -116,13 +169,10 @@ export default function ConstraintFormPage() {
         setIsLoading(true);
         setMessage(null);
         try {
-            await api.post('/constraints', {
-                weekId,
-                constraints: constraints.map(c => ({
-                    ...c,
-                    date: new Date(c.date)
-                }))
-            });
+            const meaningfulConstraints = constraints
+                .filter(c => !c.canWork || c.availableFrom || c.availableTo)
+                .map(c => ({ ...c, date: new Date(c.date) }));
+            await api.post('/constraints', { weekId, constraints: meaningfulConstraints });
             setMessage({ text: 'האילוצים נשלחו בהצלחה', type: 'success' });
         } catch (error: any) {
             console.error('Submit error:', error);
@@ -244,28 +294,71 @@ export default function ConstraintFormPage() {
                                         <div className="text-sm text-slate-500">{dateLabel}</div>
                                     </div>
 
-                                    <div className="md:w-3/4 flex flex-wrap gap-4">
+                                    <div className="md:w-3/4 flex flex-col gap-3">
                                         {SHIFTS.map(shift => {
                                             const checked = isChecked(dateStr, shift.id);
+                                            const key = `${dateStr}_${shift.id}`;
+                                            const isExpanded = !!partialExpanded[key];
+                                            const partialEntry = getPartialEntry(dateStr, shift.id);
                                             return (
-                                                <label
+                                                <div
                                                     key={shift.id}
-                                                    className={`flex items-center space-x-3 space-x-reverse p-3 rounded-lg border cursor-pointer transition-all ${checked
-                                                        ? 'border-indigo-500 ring-1 ring-indigo-500 bg-indigo-50'
-                                                        : 'border-slate-200 bg-white hover:border-slate-300'
-                                                        } ${readOnly ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                                    className={`flex flex-col p-3 rounded-lg border transition-all ${checked
+                                                        ? 'border-red-400 bg-red-50'
+                                                        : isExpanded
+                                                            ? 'border-amber-400 bg-amber-50'
+                                                            : 'border-slate-200 bg-white'
+                                                        } ${readOnly ? 'opacity-70' : ''}`}
                                                 >
-                                                    <input
-                                                        type="checkbox"
-                                                        className="w-5 h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 focus:ring-offset-2"
-                                                        checked={checked}
-                                                        onChange={() => handleToggle(dateStr, shift.id)}
-                                                        disabled={readOnly}
-                                                    />
-                                                    <span className={`${checked ? 'text-indigo-900 font-medium' : 'text-slate-700'}`}>
-                                                        {shift.label}
-                                                    </span>
-                                                </label>
+                                                    <div className="flex items-center gap-3">
+                                                        <input
+                                                            type="checkbox"
+                                                            className="w-5 h-5 text-red-500 border-slate-300 rounded focus:ring-red-400 focus:ring-offset-2 flex-shrink-0"
+                                                            checked={checked}
+                                                            onChange={() => handleToggle(dateStr, shift.id)}
+                                                            disabled={readOnly}
+                                                            title="לא יכול/ה לעבוד כלל"
+                                                        />
+                                                        <span className={`font-medium ${checked ? 'text-red-700 line-through' : 'text-slate-700'}`}>
+                                                            {shift.label}
+                                                        </span>
+                                                        {!checked && !readOnly && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => togglePartial(dateStr, shift.id)}
+                                                                className={`mr-auto text-xs px-2 py-1 rounded border transition-colors ${isExpanded
+                                                                    ? 'border-amber-400 text-amber-700 bg-amber-100 hover:bg-amber-200'
+                                                                    : 'border-slate-300 text-slate-500 bg-white hover:bg-slate-100'}`}
+                                                            >
+                                                                {isExpanded ? 'ביטול שעות ▲' : 'קבע שעות חלקיות ▾'}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    {isExpanded && !checked && (
+                                                        <div className="mt-3 pt-3 border-t border-amber-200 flex flex-wrap gap-4 text-sm">
+                                                            <label className="flex flex-col gap-1 text-slate-700">
+                                                                <span className="text-xs font-medium text-amber-700">זמין/ה החל מ:</span>
+                                                                <input
+                                                                    type="time"
+                                                                    value={partialEntry?.availableFrom ?? ''}
+                                                                    onChange={e => handlePartialTime(dateStr, shift.id, 'availableFrom', e.target.value)}
+                                                                    disabled={readOnly}
+                                                                    className="border border-amber-300 rounded px-2 py-1 text-sm focus:ring-amber-400 focus:border-amber-400"
+                                                                />
+                                                            </label>
+                                                            <label className="flex flex-col gap-1 text-slate-700">
+                                                                <span className="text-xs font-medium text-amber-700">זמין/ה עד:</span>
+                                                                <input
+                                                                    type="time"
+                                                                    value={partialEntry?.availableTo ?? ''}
+                                                                    onChange={e => handlePartialTime(dateStr, shift.id, 'availableTo', e.target.value)}
+                                                                    disabled={readOnly}
+                                                                    className="border border-amber-300 rounded px-2 py-1 text-sm focus:ring-amber-400 focus:border-amber-400"
+                                                                />
+                                                            </label>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             );
                                         })}
                                     </div>

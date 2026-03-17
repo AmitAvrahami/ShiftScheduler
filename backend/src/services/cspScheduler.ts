@@ -1,6 +1,7 @@
 import { Types } from 'mongoose';
 import { IUser } from '../models/User';
 import { IShift } from '../models/Schedule';
+import { PartialImpactResult } from '../utils/shiftTimes';
 
 // ─── Public Types ─────────────────────────────────────────────────────────────
 
@@ -8,6 +9,60 @@ export type ShiftType = 'morning' | 'afternoon' | 'night';
 
 /** userId → dateKey → shiftType → cannotWork (true = blocked) */
 export type ConstraintMap = Record<string, Record<string, Record<string, boolean>>>;
+
+/** userId → dateKey → shiftType → PartialImpactResult (shouldBlock=false only) */
+export type PartialConstraintMap = Record<string, Record<string, Record<string, PartialImpactResult>>>;
+
+export interface PartialAssignment {
+    employeeId: string;
+    employeeName: string;
+    dateKey: string;
+    shiftType: ShiftType;
+    gapDescription: string;
+    action: 'cover_start' | 'cover_end';
+    missingMinutes: number;
+}
+
+export interface CriticalViolation {
+    dateKey: string;
+    shiftType: ShiftType;
+    filled: number;
+    required: number;
+    missing: number;
+}
+
+export interface SequenceWarning {
+    employeeName: string;
+    employeeId: string;
+    fromShift: ShiftType;
+    fromDate: string;
+    toShift: ShiftType;
+    toDate: string;
+    /** Minimum rest between the two shifts, in hours */
+    restHours: number;
+}
+
+export interface FairnessWarning {
+    employeeName: string;
+    employeeId: string;
+    /** Which workload metric is imbalanced */
+    metric: 'nightShifts' | 'weekendShifts';
+    employeeCount: number;
+    averageCount: number;
+    /** How many percent above average this employee is */
+    deviationPercent: number;
+}
+
+export interface ConstraintViolationReport {
+    criticalViolations: CriticalViolation[];
+    /** Re-uses PartialAssignment — employees assigned despite soft time-window constraints */
+    softWarnings: PartialAssignment[];
+    /** Tight turnaround warnings (e.g. afternoon → next-day morning = 8h rest) */
+    sequenceWarnings: SequenceWarning[];
+    /** Employees with >30% more night or weekend shifts than average */
+    fairnessWarnings: FairnessWarning[];
+    totalViolations: number;
+}
 
 export interface ShiftSlot {
     date: Date;
@@ -20,6 +75,7 @@ export interface CSPInput {
     slots: ShiftSlot[];
     employees: (IUser & { _id: Types.ObjectId })[];
     constraintMap: ConstraintMap;
+    partialConstraintMap: PartialConstraintMap;
     weekDates: Date[];
 }
 
@@ -30,6 +86,12 @@ export interface CSPResult {
     unfilledVars: string[];
     /** Number of backtracks performed — useful for tests and logging */
     backtracks: number;
+    /** Employees assigned despite a partial time-window constraint (shouldBlock=false) */
+    partialAssignments: PartialAssignment[];
+    /** Night shift count per employeeId — used for fairness reporting */
+    nightCounts: Map<string, number>;
+    /** Weekend (Fri+Sat) shift count per employeeId — used for fairness reporting */
+    weekendCounts: Map<string, number>;
 }
 
 // ─── Internal Types ───────────────────────────────────────────────────────────
@@ -84,7 +146,8 @@ function parseVarId(varId: string): { dateKey: string; type: ShiftType; seatInde
  * Returns true if empId can be assigned to (dateKey, type) given current schedules.
  * Checks:
  *   1. No double booking on the same day
- *   2. Rest rule: no morning if employee worked night the previous day
+ *   2a. Rest rule (morning): no night shift the previous day
+ *   2b. Rest rule (night): no morning shift already assigned the next day
  */
 function isConsistent(
     empId: string,
@@ -99,12 +162,21 @@ function isConsistent(
     // 1. Same-day double booking
     if (schedule.has(dateKey)) return false;
 
-    // 2. Rest rule (morning only)
+    // 2a. Rest rule (morning): no night shift the previous day
     if (type === 'morning') {
         const targetDate = weekDates.find(d => toDateKey(d) === dateKey);
         if (targetDate) {
             const prevDayKey = toDateKey(new Date(targetDate.getTime() - DAY_MS));
             if (schedule.get(prevDayKey) === 'night') return false;
+        }
+    }
+
+    // 2b. Rest rule (night): no morning shift already assigned the next day
+    if (type === 'night') {
+        const targetDate = weekDates.find(d => toDateKey(d) === dateKey);
+        if (targetDate) {
+            const nextDayKey = toDateKey(new Date(targetDate.getTime() + DAY_MS));
+            if (schedule.get(nextDayKey) === 'morning') return false;
         }
     }
 
@@ -115,7 +187,8 @@ function isConsistent(
  * After assigning empId to (dateKey, type), prune empId from domains of
  * affected unassigned vars:
  *   - Any var on the same day  (double-booking)
- *   - Morning vars on the next day if type=night  (rest rule)
+ *   - Morning vars on the next day if type=night  (rest rule, forward)
+ *   - Night vars on the previous day if type=morning  (rest rule, reverse)
  *
  * Returns a snapshot of pruned entries for backtrack restoration.
  */
@@ -139,11 +212,21 @@ function forwardCheck(
 
         if (v.dateKey === dateKey) shouldPrune = true;
 
-        if (type === 'night' && v.type === 'morning') {
+        // Night assigned → prune morning seats on the next day (forward direction)
+        if (!shouldPrune && type === 'night' && v.type === 'morning') {
             const nightDate = weekDates.find(d => toDateKey(d) === dateKey);
             if (nightDate) {
                 const nextDayKey = toDateKey(new Date(nightDate.getTime() + DAY_MS));
                 if (v.dateKey === nextDayKey) shouldPrune = true;
+            }
+        }
+
+        // Morning assigned → prune night seats on the previous day (reverse direction)
+        if (!shouldPrune && type === 'morning' && v.type === 'night') {
+            const morningDate = weekDates.find(d => toDateKey(d) === dateKey);
+            if (morningDate) {
+                const prevDayKey = toDateKey(new Date(morningDate.getTime() - DAY_MS));
+                if (v.dateKey === prevDayKey) shouldPrune = true;
             }
         }
 
@@ -199,9 +282,11 @@ function selectVariable(
 }
 
 /**
- * LCV + load-balance ordering:
+ * LCV + penalty-based fairness ordering:
  *   Primary sort:   fewest domain entries pruned across unassigned neighbours (LCV)
- *   Tiebreaker:     fewest total assignments so far (load balance — never overrides LCV)
+ *   Tiebreaker:     weighted penalty = total + 2×night + 1.5×weekend
+ *                   (night and weekend shifts are more burdensome, so employees
+ *                    who already carry more of them are deprioritised)
  */
 function orderValues(
     v: CSPVar,
@@ -211,6 +296,8 @@ function orderValues(
     domains: Map<string, Set<string>>,
     weekDates: Date[],
     assignmentCounts: Map<string, number>,
+    nightCounts: Map<string, number>,
+    weekendCounts: Map<string, number>,
 ): string[] {
     const scored = Array.from(domain).map(empId => {
         let pruned = 0;
@@ -220,6 +307,7 @@ function orderValues(
 
             if (u.dateKey === v.dateKey) { pruned++; continue; }
 
+            // Night assigned → morning next day is pruned
             if (v.type === 'night' && u.type === 'morning') {
                 const nightDate = weekDates.find(d => toDateKey(d) === v.dateKey);
                 if (nightDate) {
@@ -227,11 +315,24 @@ function orderValues(
                     if (u.dateKey === nextDayKey) pruned++;
                 }
             }
+
+            // Morning assigned → night previous day is pruned
+            if (v.type === 'morning' && u.type === 'night') {
+                const morningDate = weekDates.find(d => toDateKey(d) === v.dateKey);
+                if (morningDate) {
+                    const prevDayKey = toDateKey(new Date(morningDate.getTime() - DAY_MS));
+                    if (u.dateKey === prevDayKey) pruned++;
+                }
+            }
         }
-        return { empId, pruned, count: assignmentCounts.get(empId) ?? 0 };
+        const total = assignmentCounts.get(empId) ?? 0;
+        const night = nightCounts.get(empId) ?? 0;
+        const weekend = weekendCounts.get(empId) ?? 0;
+        const penalty = total + 2 * night + 1.5 * weekend;
+        return { empId, pruned, penalty };
     });
 
-    scored.sort((a, b) => a.pruned - b.pruned || a.count - b.count);
+    scored.sort((a, b) => a.pruned - b.pruned || a.penalty - b.penalty);
     return scored.map(s => s.empId);
 }
 
@@ -244,6 +345,8 @@ function backtrack(
     empSchedules: Map<string, EmpSchedule>,
     domains: Map<string, Set<string>>,
     assignmentCounts: Map<string, number>,
+    nightCounts: Map<string, number>,
+    weekendCounts: Map<string, number>,
     weekDates: Date[],
     stats: { backtracks: number },
 ): boolean {
@@ -251,7 +354,8 @@ function backtrack(
 
     const v = selectVariable(cspVars, assigned, domains);
     const orderedValues = orderValues(
-        v, domains.get(v.id)!, cspVars, assigned, domains, weekDates, assignmentCounts,
+        v, domains.get(v.id)!, cspVars, assigned, domains, weekDates,
+        assignmentCounts, nightCounts, weekendCounts,
     );
 
     for (const empId of orderedValues) {
@@ -262,7 +366,9 @@ function backtrack(
         assigned.add(v.id);
         empSchedules.get(empId)?.set(v.dateKey, v.type);
         assignmentCounts.set(empId, (assignmentCounts.get(empId) ?? 0) + 1);
-        console.debug(`[CSP] Assign: ${empId} → ${v.id} (domain was ${domains.get(v.id)!.size})`);
+        if (v.type === 'night') nightCounts.set(empId, (nightCounts.get(empId) ?? 0) + 1);
+        const dayOfWeek = v.date.getDay();
+        if (dayOfWeek === 5 || dayOfWeek === 6) weekendCounts.set(empId, (weekendCounts.get(empId) ?? 0) + 1);
 
         // Forward check
         const removed = forwardCheck(empId, v.dateKey, v.type, cspVars, assigned, domains, weekDates);
@@ -274,7 +380,7 @@ function backtrack(
         }
 
         if (!wiped) {
-            if (backtrack(cspVars, assigned, assignment, empSchedules, domains, assignmentCounts, weekDates, stats)) {
+            if (backtrack(cspVars, assigned, assignment, empSchedules, domains, assignmentCounts, nightCounts, weekendCounts, weekDates, stats)) {
                 return true;
             }
         }
@@ -284,12 +390,12 @@ function backtrack(
         assigned.delete(v.id);
         empSchedules.get(empId)!.delete(v.dateKey);
         assignmentCounts.set(empId, Math.max(0, (assignmentCounts.get(empId) ?? 1) - 1));
+        if (v.type === 'night') nightCounts.set(empId, Math.max(0, (nightCounts.get(empId) ?? 1) - 1));
+        if (dayOfWeek === 5 || dayOfWeek === 6) weekendCounts.set(empId, Math.max(0, (weekendCounts.get(empId) ?? 1) - 1));
         restoreDomains(removed, domains);
         stats.backtracks++;
-        console.debug(`[CSP] Backtrack: undoing ${empId} → ${v.id}`);
     }
 
-    console.debug(`[CSP] Backtrack: ${v.id} exhausted all ${orderedValues.length} values`);
     return false;
 }
 
@@ -307,13 +413,15 @@ function backtrack(
  *            (handles genuinely under-staffed weeks without crashing).
  */
 export function solveCsp(input: CSPInput): CSPResult {
-    const { slots, employees, constraintMap, weekDates } = input;
+    const { slots, employees, constraintMap, partialConstraintMap, weekDates } = input;
 
     const managers = employees.filter(e => isManagerEmployee(e));
     const regulars = employees.filter(e => !isManagerEmployee(e));
 
     const assignment = new Map<string, string>();
     const assignmentCounts = new Map<string, number>();
+    const nightCounts = new Map<string, number>();
+    const weekendCounts = new Map<string, number>();
 
     // empSchedules: empId → (dateKey → shiftType) — used for consistency checks
     const empSchedules = new Map<string, EmpSchedule>();
@@ -324,20 +432,26 @@ export function solveCsp(input: CSPInput): CSPResult {
         if (slot.type !== 'morning') continue;
 
         const available = managers
-            .filter(m => !constraintMap[m._id.toString()]?.[slot.dateKey]?.['morning'])
+            .filter(m => {
+                const mId = m._id.toString();
+                return !constraintMap[mId]?.[slot.dateKey]?.['morning']
+                    && !partialConstraintMap[mId]?.[slot.dateKey]?.['morning']?.shouldBlock;
+            })
             .sort((a, b) =>
                 (assignmentCounts.get(a._id.toString()) ?? 0) -
                 (assignmentCounts.get(b._id.toString()) ?? 0),
             );
 
+        const slotDayOfWeek = slot.date.getDay();
         let seatIdx = 0;
         for (const mgr of available) {
             const mgrId = mgr._id.toString();
             const varId = `${slot.dateKey}_morning_${seatIdx}`;
             assignment.set(varId, mgrId);
             assignmentCounts.set(mgrId, (assignmentCounts.get(mgrId) ?? 0) + 1);
+            // morning shifts are never night; track weekend for managers too
+            if (slotDayOfWeek === 5 || slotDayOfWeek === 6) weekendCounts.set(mgrId, (weekendCounts.get(mgrId) ?? 0) + 1);
             empSchedules.get(mgrId)!.set(slot.dateKey, 'morning');
-            console.debug(`[CSP] Pre-assign (manager): ${mgrId} → ${varId}`);
             seatIdx++;
         }
     }
@@ -368,7 +482,11 @@ export function solveCsp(input: CSPInput): CSPResult {
     const domains = new Map<string, Set<string>>();
     for (const v of cspVars) {
         const eligible = regulars
-            .filter(emp => !constraintMap[emp._id.toString()]?.[v.dateKey]?.[v.type])
+            .filter(emp => {
+                const eId = emp._id.toString();
+                return !constraintMap[eId]?.[v.dateKey]?.[v.type]
+                    && !partialConstraintMap[eId]?.[v.dateKey]?.[v.type]?.shouldBlock;
+            })
             .map(emp => emp._id.toString());
         domains.set(v.id, new Set(eligible));
     }
@@ -378,7 +496,7 @@ export function solveCsp(input: CSPInput): CSPResult {
     const stats = { backtracks: 0 };
 
     if (cspVars.length > 0) {
-        backtrack(cspVars, assigned, assignment, empSchedules, domains, assignmentCounts, weekDates, stats);
+        backtrack(cspVars, assigned, assignment, empSchedules, domains, assignmentCounts, nightCounts, weekendCounts, weekDates, stats);
     }
 
     // ── Phase 5: Greedy rescue for seats backtracking couldn't fill ──────────
@@ -389,6 +507,7 @@ export function solveCsp(input: CSPInput): CSPResult {
             .filter(emp => {
                 const empId = emp._id.toString();
                 if (constraintMap[empId]?.[v.dateKey]?.[v.type]) return false;
+                if (partialConstraintMap[empId]?.[v.dateKey]?.[v.type]?.shouldBlock) return false;
                 return isConsistent(empId, v.dateKey, v.type, empSchedules, weekDates);
             })
             .sort((a, b) =>
@@ -397,19 +516,40 @@ export function solveCsp(input: CSPInput): CSPResult {
             );
 
         if (candidates.length === 0) {
-            console.debug(`[CSP] Unfilled: ${v.id}`);
             continue;
         }
 
         const empId = candidates[0]._id.toString();
         assignment.set(v.id, empId);
         assignmentCounts.set(empId, (assignmentCounts.get(empId) ?? 0) + 1);
+        if (v.type === 'night') nightCounts.set(empId, (nightCounts.get(empId) ?? 0) + 1);
+        const rescueDayOfWeek = v.date.getDay();
+        if (rescueDayOfWeek === 5 || rescueDayOfWeek === 6) weekendCounts.set(empId, (weekendCounts.get(empId) ?? 0) + 1);
         empSchedules.get(empId)!.set(v.dateKey, v.type);
-        console.debug(`[CSP] Rescue: ${empId} → ${v.id}`);
     }
 
     const unfilledVars = cspVars.filter(v => !assignment.has(v.id)).map(v => v.id);
-    return { assignments: assignment, unfilledVars, backtracks: stats.backtracks };
+
+    // ── Collect partial assignments (employees with shouldBlock=false partial constraints) ─
+    const partialAssignments: PartialAssignment[] = [];
+    for (const [varId, empId] of assignment) {
+        const { dateKey, type } = parseVarId(varId);
+        const partial = partialConstraintMap[empId]?.[dateKey]?.[type];
+        if (partial && !partial.shouldBlock) {
+            const emp = employees.find(e => e._id.toString() === empId);
+            partialAssignments.push({
+                employeeId: empId,
+                employeeName: emp?.name ?? empId,
+                dateKey,
+                shiftType: type,
+                gapDescription: partial.gapDescription,
+                action: partial.action,
+                missingMinutes: partial.missingMinutes,
+            });
+        }
+    }
+
+    return { assignments: assignment, unfilledVars, backtracks: stats.backtracks, partialAssignments, nightCounts, weekendCounts };
 }
 
 // ─── Result → IShift[] ────────────────────────────────────────────────────────
