@@ -298,6 +298,7 @@ function orderValues(
     assignmentCounts: Map<string, number>,
     nightCounts: Map<string, number>,
     weekendCounts: Map<string, number>,
+    jitter: number,
 ): string[] {
     const scored = Array.from(domain).map(empId => {
         let pruned = 0;
@@ -328,12 +329,41 @@ function orderValues(
         const total = assignmentCounts.get(empId) ?? 0;
         const night = nightCounts.get(empId) ?? 0;
         const weekend = weekendCounts.get(empId) ?? 0;
-        const penalty = total + 2 * night + 1.5 * weekend;
+        const penalty = total + 2 * Math.pow(night, 2) + 1.5 * Math.pow(weekend, 2) + jitter * (Math.random() - 0.5);
         return { empId, pruned, penalty };
     });
 
     scored.sort((a, b) => a.pruned - b.pruned || a.penalty - b.penalty);
     return scored.map(s => s.empId);
+}
+
+// ─── Deep-Copy Helpers & Penalty Scorer ──────────────────────────────────────
+
+function deepCopyDomains(domains: Map<string, Set<string>>): Map<string, Set<string>> {
+    const copy = new Map<string, Set<string>>();
+    for (const [varId, domain] of domains) copy.set(varId, new Set(domain));
+    return copy;
+}
+
+function deepCopyEmpSchedules(schedules: Map<string, EmpSchedule>): Map<string, EmpSchedule> {
+    const copy = new Map<string, EmpSchedule>();
+    for (const [empId, schedule] of schedules) copy.set(empId, new Map(schedule));
+    return copy;
+}
+
+/** Sum of exponential penalties — lower means fairer night/weekend distribution. */
+function computeTotalPenalty(
+    nightCounts: Map<string, number>,
+    weekendCounts: Map<string, number>,
+): number {
+    const allEmps = new Set([...nightCounts.keys(), ...weekendCounts.keys()]);
+    let total = 0;
+    for (const empId of allEmps) {
+        const night = nightCounts.get(empId) ?? 0;
+        const weekend = weekendCounts.get(empId) ?? 0;
+        total += 2 * night * night + 1.5 * weekend * weekend;
+    }
+    return total;
 }
 
 // ─── Backtracking Search ──────────────────────────────────────────────────────
@@ -349,13 +379,14 @@ function backtrack(
     weekendCounts: Map<string, number>,
     weekDates: Date[],
     stats: { backtracks: number },
+    jitter: number,
 ): boolean {
     if (assigned.size === cspVars.length) return true;
 
     const v = selectVariable(cspVars, assigned, domains);
     const orderedValues = orderValues(
         v, domains.get(v.id)!, cspVars, assigned, domains, weekDates,
-        assignmentCounts, nightCounts, weekendCounts,
+        assignmentCounts, nightCounts, weekendCounts, jitter,
     );
 
     for (const empId of orderedValues) {
@@ -380,7 +411,7 @@ function backtrack(
         }
 
         if (!wiped) {
-            if (backtrack(cspVars, assigned, assignment, empSchedules, domains, assignmentCounts, nightCounts, weekendCounts, weekDates, stats)) {
+            if (backtrack(cspVars, assigned, assignment, empSchedules, domains, assignmentCounts, nightCounts, weekendCounts, weekDates, stats, jitter)) {
                 return true;
             }
         }
@@ -397,6 +428,84 @@ function backtrack(
     }
 
     return false;
+}
+
+// ─── Post-Hoc Local Search ────────────────────────────────────────────────────
+
+/**
+ * Single-shift reassignment local search.
+ * For each assigned CSP var, tries every other eligible employee from the
+ * original domain. If reassigning reduces the total exponential penalty
+ * (i.e. improves night/weekend fairness) AND the new assignment passes
+ * all hard constraints, the swap is applied immediately.
+ * Runs up to MAX_PASSES full sweeps or until no improving swap is found.
+ */
+function localSearchImprovement(
+    cspVars: CSPVar[],
+    assignment: Map<string, string>,
+    empSchedules: Map<string, EmpSchedule>,
+    assignmentCounts: Map<string, number>,
+    nightCounts: Map<string, number>,
+    weekendCounts: Map<string, number>,
+    weekDates: Date[],
+    baselineDomains: Map<string, Set<string>>,
+): void {
+    const MAX_PASSES = 3;
+    for (let pass = 0; pass < MAX_PASSES; pass++) {
+        let improved = false;
+        for (const v of cspVars) {
+            const empA = assignment.get(v.id);
+            if (!empA) continue;
+
+            const isNight = v.type === 'night';
+            const isWeekend = v.date.getDay() === 5 || v.date.getDay() === 6;
+            const nightA = nightCounts.get(empA) ?? 0;
+            const weekendA = weekendCounts.get(empA) ?? 0;
+            const beforeA = 2 * nightA * nightA + 1.5 * weekendA * weekendA;
+            const afterNightA = isNight ? nightA - 1 : nightA;
+            const afterWeekendA = isWeekend ? weekendA - 1 : weekendA;
+            const afterA = 2 * afterNightA * afterNightA + 1.5 * afterWeekendA * afterWeekendA;
+
+            for (const empB of baselineDomains.get(v.id) ?? []) {
+                if (empB === empA) continue;
+
+                // Temporarily remove empA to test if empB is consistent
+                const schedA = empSchedules.get(empA)!;
+                schedA.delete(v.dateKey);
+                const canWork = isConsistent(empB, v.dateKey, v.type, empSchedules, weekDates);
+                schedA.set(v.dateKey, v.type); // always restore
+
+                if (!canWork) continue;
+
+                const nightB = nightCounts.get(empB) ?? 0;
+                const weekendB = weekendCounts.get(empB) ?? 0;
+                const beforeB = 2 * nightB * nightB + 1.5 * weekendB * weekendB;
+                const afterNightB = isNight ? nightB + 1 : nightB;
+                const afterWeekendB = isWeekend ? weekendB + 1 : weekendB;
+                const afterB = 2 * afterNightB * afterNightB + 1.5 * afterWeekendB * afterWeekendB;
+
+                if ((afterA + afterB) < (beforeA + beforeB)) {
+                    // Apply reassignment
+                    assignment.set(v.id, empB);
+                    schedA.delete(v.dateKey);
+                    empSchedules.get(empB)!.set(v.dateKey, v.type);
+                    assignmentCounts.set(empA, Math.max(0, (assignmentCounts.get(empA) ?? 1) - 1));
+                    assignmentCounts.set(empB, (assignmentCounts.get(empB) ?? 0) + 1);
+                    if (isNight) {
+                        nightCounts.set(empA, Math.max(0, nightA - 1));
+                        nightCounts.set(empB, nightB + 1);
+                    }
+                    if (isWeekend) {
+                        weekendCounts.set(empA, Math.max(0, weekendA - 1));
+                        weekendCounts.set(empB, weekendB + 1);
+                    }
+                    improved = true;
+                    break;
+                }
+            }
+        }
+        if (!improved) break;
+    }
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -418,13 +527,13 @@ export function solveCsp(input: CSPInput): CSPResult {
     const managers = employees.filter(e => isManagerEmployee(e));
     const regulars = employees.filter(e => !isManagerEmployee(e));
 
-    const assignment = new Map<string, string>();
-    const assignmentCounts = new Map<string, number>();
-    const nightCounts = new Map<string, number>();
-    const weekendCounts = new Map<string, number>();
+    let assignment = new Map<string, string>();
+    let assignmentCounts = new Map<string, number>();
+    let nightCounts = new Map<string, number>();
+    let weekendCounts = new Map<string, number>();
 
     // empSchedules: empId → (dateKey → shiftType) — used for consistency checks
-    const empSchedules = new Map<string, EmpSchedule>();
+    let empSchedules = new Map<string, EmpSchedule>();
     for (const emp of employees) empSchedules.set(emp._id.toString(), new Map());
 
     // ── Phase 1: Pre-assign managers to morning shifts ──────────────────────
@@ -491,12 +600,54 @@ export function solveCsp(input: CSPInput): CSPResult {
         domains.set(v.id, new Set(eligible));
     }
 
-    // ── Phase 4: Backtracking search ────────────────────────────────────────
-    const assigned = new Set<string>();
-    const stats = { backtracks: 0 };
+    // ── Baseline snapshot (post-Phase-1, pre-CSP) ────────────────────────────
+    const baselineAssignment = new Map(assignment);
+    const baselineAssignmentCounts = new Map(assignmentCounts);
+    const baselineNightCounts = new Map(nightCounts);
+    const baselineWeekendCounts = new Map(weekendCounts);
+    const baselineEmpSchedules = deepCopyEmpSchedules(empSchedules);
+    const baselineDomains = deepCopyDomains(domains);
+
+    // ── Phase 4: Multi-run backtracking — pick result with lowest penalty ────
+    const NUM_RUNS = 5;
+    const JITTER_VALUES = [0, 0.5, 0.5, 1.0, 1.0]; // run 0 deterministic
+    let bestPenalty = Infinity;
+    let totalBacktracks = 0;
 
     if (cspVars.length > 0) {
-        backtrack(cspVars, assigned, assignment, empSchedules, domains, assignmentCounts, nightCounts, weekendCounts, weekDates, stats);
+        for (let run = 0; run < NUM_RUNS; run++) {
+            const runAssignment = new Map(baselineAssignment);
+            const runAssignmentCounts = new Map(baselineAssignmentCounts);
+            const runNightCounts = new Map(baselineNightCounts);
+            const runWeekendCounts = new Map(baselineWeekendCounts);
+            const runEmpSchedules = deepCopyEmpSchedules(baselineEmpSchedules);
+            const runDomains = deepCopyDomains(baselineDomains);
+            const runAssigned = new Set<string>();
+            const runStats = { backtracks: 0 };
+
+            backtrack(
+                cspVars, runAssigned, runAssignment, runEmpSchedules, runDomains,
+                runAssignmentCounts, runNightCounts, runWeekendCounts,
+                weekDates, runStats, JITTER_VALUES[run],
+            );
+
+            totalBacktracks += runStats.backtracks;
+
+            const penalty = computeTotalPenalty(runNightCounts, runWeekendCounts);
+            if (penalty < bestPenalty) {
+                bestPenalty = penalty;
+                assignment = runAssignment;
+                assignmentCounts = runAssignmentCounts;
+                nightCounts = runNightCounts;
+                weekendCounts = runWeekendCounts;
+                empSchedules = runEmpSchedules;
+            }
+        }
+
+        localSearchImprovement(
+            cspVars, assignment, empSchedules, assignmentCounts,
+            nightCounts, weekendCounts, weekDates, baselineDomains,
+        );
     }
 
     // ── Phase 5: Greedy rescue for seats backtracking couldn't fill ──────────
@@ -549,7 +700,7 @@ export function solveCsp(input: CSPInput): CSPResult {
         }
     }
 
-    return { assignments: assignment, unfilledVars, backtracks: stats.backtracks, partialAssignments, nightCounts, weekendCounts };
+    return { assignments: assignment, unfilledVars, backtracks: totalBacktracks, partialAssignments, nightCounts, weekendCounts };
 }
 
 // ─── Result → IShift[] ────────────────────────────────────────────────────────

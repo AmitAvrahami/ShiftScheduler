@@ -23,6 +23,9 @@ vitest.log
 # macOS
 .DS_Store
 
+# Agent framework
+.agent/
+
 # IDE
 .idea/
 .vscode/
