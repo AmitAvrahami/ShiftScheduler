@@ -444,14 +444,20 @@ function ConstraintWarningModal({
     onCancel,
 }: {
     employeeName: string;
-    violationType: 'constraint' | 'rest_rule';
+    violationType: 'constraint' | 'rest_rule' | 'shift_cap';
     onConfirm: () => void;
     onCancel: () => void;
 }) {
-    const title = violationType === 'rest_rule' ? 'הפרת מנוחה' : 'אילוץ משמרת';
-    const icon = violationType === 'rest_rule' ? '🛑' : '⚠️';
+    const title = violationType === 'rest_rule' ? 'הפרת מנוחה'
+        : violationType === 'shift_cap' ? 'חריגה ממכסת משמרות'
+        : 'אילוץ משמרת';
+    const icon = violationType === 'rest_rule' ? '🛑'
+        : violationType === 'shift_cap' ? '🚫'
+        : '⚠️';
     const message = violationType === 'rest_rule'
         ? <>ל<strong>{employeeName}</strong> תסתיים משמרת לילה ב-06:45 — ומשמרת בוקר מתחילה ב-06:45. אין זמן מנוחה בין המשמרות. האם להוסיף בכל זאת?</>
+        : violationType === 'shift_cap'
+        ? <><strong>{employeeName}</strong> כבר שובץ/ה ל-6 משמרות השבוע — המגבלה המשפטית המקסימלית. לא ניתן להוסיף משמרת נוספת.</>
         : <>ל<strong>{employeeName}</strong> יש אילוץ למשמרת זו — הם הצהירו שלא יכולים לעבוד. האם להוסיף אותם בכל זאת?</>;
     const confirmColor = violationType === 'rest_rule'
         ? 'bg-red-500 hover:bg-red-600'
@@ -466,17 +472,19 @@ function ConstraintWarningModal({
                 </div>
                 <p className="text-gray-600 text-sm">{message}</p>
                 <div className="flex gap-3 justify-end">
+                    {violationType !== 'shift_cap' && (
+                        <button
+                            onClick={onConfirm}
+                            className={`px-4 py-2 text-white ${confirmColor} rounded-lg font-medium transition-colors`}
+                        >
+                            כן, הוסף בכל זאת
+                        </button>
+                    )}
                     <button
                         onClick={onCancel}
                         className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
                     >
-                        ביטול
-                    </button>
-                    <button
-                        onClick={onConfirm}
-                        className={`px-4 py-2 text-white ${confirmColor} rounded-lg font-medium transition-colors`}
-                    >
-                        כן, הוסף בכל זאת
+                        {violationType === 'shift_cap' ? 'סגור' : 'ביטול'}
                     </button>
                 </div>
             </div>
@@ -536,7 +544,11 @@ function SystemConstraintAlertsSection({ report }: { report: ConstraintViolation
                             <span>|</span>
                             <span>שובצו {v.filled}/{v.required} — חסרים {v.missing}</span>
                             <span>|</span>
-                            <span className="font-medium text-red-800">הוסף עובד ידנית</span>
+                            <span className="font-medium text-red-800">
+                                {v.reason === 'capacity_limit'
+                                    ? 'כל העובדים הגיעו ל-6 משמרות — הוסף עובד חדש'
+                                    : 'הוסף עובד ידנית'}
+                            </span>
                         </div>
                     ))}
                 </div>
@@ -664,7 +676,7 @@ export default function ScheduleManagerPage() {
         employee: EmployeeBasic;
         targetCellKey: string;
         sourceCellKey: string | undefined;
-        violationType: 'constraint' | 'rest_rule';
+        violationType: 'constraint' | 'rest_rule' | 'shift_cap';
     } | null>(null);
 
     // Dirty flag — true when editor differs from the last saved/generated state
@@ -1086,6 +1098,24 @@ export default function ScheduleManagerPage() {
             if (targetShift?.employees.find(e => e._id === source.employee._id)) {
                 // Employee already in target — reject silently
                 return;
+            }
+
+            // Check 6-shift weekly cap (only for new assignments from sidebar;
+            // cell→cell moves are count-neutral: employee loses one shift and gains one)
+            if (source.kind === 'sidebar') {
+                const weeklyCount = editorShifts.reduce(
+                    (count, shift) => count + (shift.employees.some(e => e._id === source.employee._id) ? 1 : 0),
+                    0,
+                );
+                if (weeklyCount >= 6) {
+                    setPendingDrop({
+                        employee: source.employee,
+                        targetCellKey: targetId,
+                        sourceCellKey: undefined,
+                        violationType: 'shift_cap',
+                    });
+                    return;
+                }
             }
 
             // Check for constraint violation (canWork=false)

@@ -194,6 +194,29 @@ export async function generateWeekSchedule(
         }
     }
 
+    // ── Classify capacity-limited critical violations ─────────────────────────
+    // If all eligible regular employees (ignoring the shift cap) have reached
+    // 6 assignments, report the violation as a capacity issue rather than
+    // a generic understaffing, so the manager knows to add more staff.
+    const finalAssignmentList = [...cspResult.assignments.values()];
+    for (const cv of criticalViolations) {
+        const eligibleIgnoringCap = activeUsers.filter(emp => {
+            if (emp.role === 'manager' || emp.isFixedMorning) return false;
+            const eId = emp._id.toString();
+            if (constraintMap[eId]?.[cv.dateKey]?.[cv.shiftType]) return false;
+            if (partialConstraintMap[eId]?.[cv.dateKey]?.[cv.shiftType]?.shouldBlock) return false;
+            return true;
+        });
+        if (eligibleIgnoringCap.length === 0) continue;
+        const atCapCount = eligibleIgnoringCap.filter(emp => {
+            const eId = emp._id.toString();
+            return finalAssignmentList.filter(id => id === eId).length >= 6;
+        }).length;
+        if (atCapCount === eligibleIgnoringCap.length) {
+            cv.reason = 'capacity_limit';
+        }
+    }
+
     // ── Detect tight-turnaround sequence warnings ────────────────────────────
     // Afternoon shift ends at 22:45 → next-day morning starts at 06:45 = exactly 8h rest.
     // While technically meeting the 8h minimum, this is a physically demanding pattern

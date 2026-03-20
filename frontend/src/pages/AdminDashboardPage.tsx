@@ -660,7 +660,7 @@ export default function AdminDashboardPage() {
                             <div className="text-center py-10 text-slate-500">טוען אילוצים...</div>
                         ) : constraints.length === 0 ? (
                             <div className="text-center py-10 text-slate-500 bg-white rounded-lg shadow border border-slate-200">
-                                לא הוגשו אילוצים לשבוע זה
+                                אין עובדים פעילים במערכת
                             </div>
                         ) : (
                             <div className="bg-white shadow rounded-lg border border-slate-200 overflow-x-auto">

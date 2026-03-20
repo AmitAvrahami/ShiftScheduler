@@ -3,6 +3,14 @@ import { User } from '../../models/User';
 import { Constraint } from '../../models/Constraint';
 import * as schedulerService from '../schedulerService';
 
+/** Local-time date key — matches cspScheduler's toDateKey and avoids UTC offset issues. */
+function toLocalDateKey(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 /**
  * Unit tests for the Greedy CSP scheduling algorithm.
  *
@@ -93,7 +101,7 @@ describe('schedulerService.generateWeekSchedule', () => {
         const { shifts } = await schedulerService.generateWeekSchedule(TEST_WEEK_ID);
 
         const sundayMorning = shifts.find(
-            s => s.type === 'morning' && s.date.toISOString().startsWith('2026-03-08'),
+            s => s.type === 'morning' && toLocalDateKey(s.date) === '2026-03-08',
         );
         expect(sundayMorning).toBeDefined();
 
@@ -110,10 +118,10 @@ describe('schedulerService.generateWeekSchedule', () => {
 
         // Find employees who worked night on Sunday (2026-03-08)
         const sundayNight = shifts.find(
-            s => s.type === 'night' && s.date.toISOString().startsWith('2026-03-08'),
+            s => s.type === 'night' && toLocalDateKey(s.date) === '2026-03-08',
         );
         const mondayMorning = shifts.find(
-            s => s.type === 'morning' && s.date.toISOString().startsWith('2026-03-09'),
+            s => s.type === 'morning' && toLocalDateKey(s.date) === '2026-03-09',
         );
 
         if (sundayNight && mondayMorning) {

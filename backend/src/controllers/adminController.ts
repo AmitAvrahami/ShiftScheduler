@@ -221,16 +221,45 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
 // GET /api/admin/constraints?weekId=YYYY-Www
 export const getAllConstraints = async (req: AuthRequest, res: Response) => {
     try {
-        const filter: Record<string, unknown> = {};
-
         if (req.query.weekId) {
             const weekId = weekIdSchema.parse(req.query.weekId as string);
-            filter.weekId = weekId;
+
+            // Fetch all active employees and managers (outer join source)
+            const allUsers = await User.find({ isActive: true, role: { $in: ['employee', 'manager'] } })
+                .select('name email role isFixedMorning isActive')
+                .sort({ name: 1 })
+                .lean();
+
+            // Fetch existing constraints for this week
+            const existing = await Constraint.find({ weekId })
+                .populate('userId', 'name email role isFixedMorning isActive')
+                .lean();
+
+            // Map userId string → constraint document
+            const constraintMap = new Map(
+                existing.map(c => [String((c.userId as any)?._id), c])
+            );
+
+            // Outer join: every active user gets a row
+            const merged = allUsers.map(user => {
+                return constraintMap.get(String(user._id)) ?? {
+                    _id: user._id,
+                    userId: user,
+                    weekId,
+                    constraints: [],
+                    isLocked: false,
+                    submittedAt: null,
+                };
+            });
+
+            return res.status(200).json({ success: true, data: merged });
         }
 
-        const constraints = await Constraint.find(filter)
+        // No weekId provided: return all existing constraints (original behaviour)
+        const constraints = await Constraint.find({})
             .populate('userId', 'name email role isFixedMorning isActive')
-            .sort({ weekId: -1, createdAt: -1 });
+            .sort({ weekId: -1, createdAt: -1 })
+            .lean();
 
         return res.status(200).json({ success: true, data: constraints });
     } catch (error) {

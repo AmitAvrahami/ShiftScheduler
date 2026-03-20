@@ -160,6 +160,119 @@ describe('cspScheduler (pure, no DB)', () => {
         }
     });
 
+    // ─── Soft constraint (8|8 pattern) tests ─────────────────────────────────
+
+    it('avoids afternoon→morning sequence (8|8) when an alternative employee exists', () => {
+        // Setup: two consecutive days. emp1 is forced into Day0 afternoon (emp2 blocked).
+        // emp2 is free for Day1 morning. Without strict Phase A, emp1 could take Day1
+        // morning (creating an 8|8). With it, emp2 must be chosen instead.
+        const day0 = new Date('2026-03-09T00:00:00');
+        const day1 = new Date('2026-03-10T00:00:00');
+        const dayKey0 = localDateKey(day0);
+        const dayKey1 = localDateKey(day1);
+
+        const emp1 = makeEmployee({ name: 'Alice' });
+        const emp2 = makeEmployee({ name: 'Bob' });
+
+        // Block emp2 from Day0 afternoon so emp1 must take it
+        const constraintMap: ConstraintMap = {
+            [emp2._id.toString()]: {
+                [dayKey0]: { afternoon: true },
+            },
+        };
+
+        const slots = [
+            { date: day0, dateKey: dayKey0, type: 'afternoon' as const, requiredHeadcount: 1 },
+            { date: day1, dateKey: dayKey1, type: 'morning'   as const, requiredHeadcount: 1 },
+        ];
+
+        const result = solveCsp({
+            slots,
+            employees: [emp1, emp2],
+            constraintMap,
+            partialConstraintMap: {},
+            weekDates: [day0, day1],
+        });
+
+        // Phase A should succeed with zero soft violations
+        expect(result.softViolationCount).toBe(0);
+
+        // emp1 (who worked Day0 afternoon) must NOT be assigned to Day1 morning
+        const morningVarId = `${dayKey1}_morning_0`;
+        expect(result.assignments.get(morningVarId)).toBe(emp2._id.toString());
+    });
+
+    it('falls back gracefully (Phase B) and fills all seats when 8|8 is unavoidable', () => {
+        // Single employee — Phase A cannot complete (would require an 8|8), so
+        // Phase B fires. Both seats must still be filled.
+        const day0 = new Date('2026-03-09T00:00:00');
+        const day1 = new Date('2026-03-10T00:00:00');
+        const dayKey0 = localDateKey(day0);
+        const dayKey1 = localDateKey(day1);
+
+        const emp1 = makeEmployee({ name: 'Alice' });
+
+        const slots = [
+            { date: day0, dateKey: dayKey0, type: 'afternoon' as const, requiredHeadcount: 1 },
+            { date: day1, dateKey: dayKey1, type: 'morning'   as const, requiredHeadcount: 1 },
+        ];
+
+        const result = solveCsp({
+            slots,
+            employees: [emp1],
+            constraintMap: {},
+            partialConstraintMap: {},
+            weekDates: [day0, day1],
+        });
+
+        // Phase B must fill both seats despite the unavoidable 8|8 pattern
+        expect(result.unfilledVars).toHaveLength(0);
+        expect(result.assignments.size).toBe(2);
+
+        // Exactly one soft violation (emp1 works afternoon then next-day morning)
+        expect(result.softViolationCount).toBe(1);
+    });
+
+    it('always prefers Phase A (zero violations) over a Phase B result', () => {
+        // 3 employees, 2 days.
+        // emp1 is forced into Day0 afternoon (emp2 and emp3 blocked).
+        // emp2 and emp3 are both free for Day1 morning.
+        // Phase A must select emp2 or emp3 for Day1 morning — never emp1.
+        const day0 = new Date('2026-03-09T00:00:00');
+        const day1 = new Date('2026-03-10T00:00:00');
+        const dayKey0 = localDateKey(day0);
+        const dayKey1 = localDateKey(day1);
+
+        const emp1 = makeEmployee({ name: 'Alice' });
+        const emp2 = makeEmployee({ name: 'Bob' });
+        const emp3 = makeEmployee({ name: 'Carol' });
+
+        const constraintMap: ConstraintMap = {
+            [emp2._id.toString()]: { [dayKey0]: { afternoon: true } },
+            [emp3._id.toString()]: { [dayKey0]: { afternoon: true } },
+        };
+
+        const slots = [
+            { date: day0, dateKey: dayKey0, type: 'afternoon' as const, requiredHeadcount: 1 },
+            { date: day1, dateKey: dayKey1, type: 'morning'   as const, requiredHeadcount: 1 },
+        ];
+
+        const result = solveCsp({
+            slots,
+            employees: [emp1, emp2, emp3],
+            constraintMap,
+            partialConstraintMap: {},
+            weekDates: [day0, day1],
+        });
+
+        expect(result.softViolationCount).toBe(0);
+
+        const morningVarId = `${dayKey1}_morning_0`;
+        const chosenForMorning = result.assignments.get(morningVarId);
+        // emp1 must NOT be chosen for Day1 morning (she worked Day0 afternoon)
+        expect(chosenForMorning).not.toBe(emp1._id.toString());
+    });
+
     it('respects rest rule bidirectionally: no night-before-morning when morning committed first', () => {
         // Scenario: morning on Day1 is assigned first (larger domain, processed later by MRV in reverse),
         // then night on Day0 is tried. The bidirectional check must catch night→nextday-morning violation.
@@ -424,6 +537,15 @@ describe('generateWeekSchedule (CSP integration)', () => {
             const unique = new Set(empIds);
             expect(empIds.length).toBe(unique.size);
         }
+    });
+
+    // ─── 8|8 soft constraint (integration) ───────────────────────────────────
+
+    it('produces zero 8|8 afternoon→morning sequences with 8 employees and no constraints', async () => {
+        // With 8 regular employees and no constraints, Phase A (strict) should
+        // always find a complete solution — zero soft violations expected.
+        const { constraintViolationReport } = await generateWeekSchedule(TEST_WEEK_ID);
+        expect(constraintViolationReport.sequenceWarnings).toHaveLength(0);
     });
 
 });

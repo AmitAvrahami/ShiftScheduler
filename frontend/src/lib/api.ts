@@ -18,6 +18,8 @@ export interface CriticalViolation {
     filled: number;
     required: number;
     missing: number;
+    /** Set when the slot is unfilled because all eligible employees hit the 6-shift cap */
+    reason?: 'capacity_limit';
 }
 
 export interface SequenceWarning {
