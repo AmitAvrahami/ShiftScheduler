@@ -257,6 +257,41 @@ export async function generateWeekSchedule(
 
     const fairnessWarnings = computeFairnessWarnings(cspResult.nightCounts, cspResult.weekendCounts, activeUsers);
 
+    // אזהרות מכסה רכה: יותר מ-2 משמרות לילה
+    for (const [empId, count] of cspResult.nightCounts) {
+        if (count > 2) {
+            const user = activeUsers.find(u => u._id.toString() === empId);
+            warnings.push(
+                `${user?.name ?? empId} שובץ ל-${count} משמרות לילה בשבוע זה (מעל המקסימום המומלץ: 2)`,
+            );
+        }
+    }
+
+    // אזהרות מכסה רכה: שיבוץ גם לשישי וגם לשבת
+    const fridayEmpIds = new Set<string>();
+    const saturdayEmpIds = new Set<string>();
+    for (const [varId, empId] of cspResult.assignments) {
+        // פורמט varId: "YYYY-MM-DD_shiftType_seatIndex"
+        const lastUnderscore = varId.lastIndexOf('_');
+        const withoutSeat = varId.slice(0, lastUnderscore);
+        const typeIdx = withoutSeat.lastIndexOf('_');
+        const dateKey = withoutSeat.slice(0, typeIdx);
+        const slot = shiftSlots.find(s => s.dateKey === dateKey);
+        if (slot) {
+            const dow = slot.date.getDay();
+            if (dow === 5) fridayEmpIds.add(empId);
+            if (dow === 6) saturdayEmpIds.add(empId);
+        }
+    }
+    for (const empId of fridayEmpIds) {
+        if (saturdayEmpIds.has(empId)) {
+            const user = activeUsers.find(u => u._id.toString() === empId);
+            warnings.push(
+                `${user?.name ?? empId} שובץ גם לשישי וגם לשבת — ייתכן שלא ניתן היה להימנע מכך`,
+            );
+        }
+    }
+
     const constraintViolationReport: ConstraintViolationReport = {
         criticalViolations,
         softWarnings: cspResult.partialAssignments,

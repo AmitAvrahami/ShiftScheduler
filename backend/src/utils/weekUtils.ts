@@ -87,3 +87,13 @@ export function getDeadline(weekId: string): Date {
 export function isDeadlinePassed(weekId: string): boolean {
     return new Date().getTime() > getDeadline(weekId).getTime();
 }
+
+/**
+ * Gets the previous week's weekId
+ */
+export function getPreviousWeekId(weekId: string): string {
+    const dates = getWeekDates(weekId);
+    const sundayOfPreviousWeek = new Date(dates[0].getTime());
+    sundayOfPreviousWeek.setDate(sundayOfPreviousWeek.getDate() - 7);
+    return getWeekId(sundayOfPreviousWeek);
+}

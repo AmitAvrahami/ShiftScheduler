@@ -104,3 +104,13 @@ export function formatWeekDateRange(weekId: string): string {
     const end = dates[6];
     return `${start.getDate()}/${start.getMonth() + 1} – ${end.getDate()}/${end.getMonth() + 1}`;
 }
+
+/**
+ * Gets the previous week's weekId
+ */
+export function getPreviousWeekId(weekId: string): string {
+    const dates = getWeekDates(weekId);
+    const sundayOfPreviousWeek = new Date(dates[0].getTime());
+    sundayOfPreviousWeek.setDate(sundayOfPreviousWeek.getDate() - 7);
+    return getWeekId(sundayOfPreviousWeek);
+}

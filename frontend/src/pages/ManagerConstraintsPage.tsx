@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../lib/api';
-import { getCurrentWeekId, getWeekDates, getWeekId, getWeekNumber, formatWeekDateRange } from '../utils/weekUtils';
+import api, { adminAPI } from '../lib/api';
+import { getCurrentWeekId, getWeekDates, getWeekId, getWeekNumber, formatWeekDateRange, getPreviousWeekId } from '../utils/weekUtils';
 
 const toDateKey = (d: Date): string =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -49,6 +49,7 @@ export default function ManagerConstraintsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isLocking, setIsLocking] = useState(false);
     const [isUnlocking, setIsUnlocking] = useState(false);
+    const [isCopying, setIsCopying] = useState(false);
     const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
     useEffect(() => {
@@ -160,6 +161,30 @@ export default function ManagerConstraintsPage() {
         }
     };
 
+    const handleCopyFromPreviousWeek = async () => {
+        const previousWeekId = getPreviousWeekId(weekId);
+        if (!window.confirm(`האם ברצונך להעתיק את האילוצים מ${previousWeekId} לשבוע זה (${weekId})? אילוצים קיימים יוחלפו.`)) {
+            return;
+        }
+
+        setIsCopying(true);
+        setMessage(null);
+        try {
+            const res = await adminAPI.copyConstraintsFromPreviousWeek(previousWeekId, weekId);
+            if (res.data.success) {
+                setMessage({ text: res.data.message, type: 'success' });
+                await fetchWeekConstraints();
+            } else {
+                setMessage({ text: res.data.message || 'שגיאה בהעתקת האילוצים', type: 'error' });
+            }
+        } catch (error) {
+            console.error('Copy error:', error);
+            setMessage({ text: 'שגיאה בהעתקת האילוצים', type: 'error' });
+        } finally {
+            setIsCopying(false);
+        }
+    };
+
     const SHIFT_LABEL: Record<string, string> = { morning: 'בוקר', afternoon: 'צהריים', night: 'לילה' };
 
     const renderCellBadges = (constraints: ConstraintEntry[], dateStr: string) => {
@@ -263,6 +288,15 @@ export default function ManagerConstraintsPage() {
                             {isLocking ? 'נועל...' : 'נעל אילוצים'}
                         </button>
                     )}
+                    <button
+                        onClick={handleCopyFromPreviousWeek}
+                        disabled={isCopying || isLoading}
+                        className="px-4 py-2 font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="העתק אילוצים מהשבוע הקודם"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                        {isCopying ? 'מעתיק...' : 'העתק מהשבוע הקודם'}
+                    </button>
                 </div>
             </div>
 

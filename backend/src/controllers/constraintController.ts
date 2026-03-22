@@ -2,7 +2,9 @@ import { Request, Response } from 'express';
 import { AuthRequest } from '../types/express';
 import { z } from 'zod';
 import { Constraint } from '../models/Constraint';
-import { getWeekDates } from '../utils/weekUtils';
+import { getWeekDates, getPreviousWeekId } from '../utils/weekUtils';
+
+const weekIdSchema = z.string().regex(/^\d{4}-W\d{2}$/, "Invalid week format");
 
 const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -146,6 +148,55 @@ export const unlockConstraints = async (req: Request, res: Response) => {
         });
     } catch (error) {
         console.error('Error unlocking constraints:', error);
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+export const copyWeekConstraints = async (req: Request, res: Response) => {
+    try {
+        const { fromWeekId, toWeekId } = z.object({
+            fromWeekId: weekIdSchema,
+            toWeekId: weekIdSchema,
+        }).parse(req.body);
+
+        const sourceConstraints = await Constraint.find({ weekId: fromWeekId }).lean();
+
+        if (sourceConstraints.length === 0) {
+            return res.status(200).json({ success: true, message: 'לא נמצאו אילוצים בשבוע המקור', count: 0 });
+        }
+
+        const sourceWeekDates = getWeekDates(fromWeekId);
+        const targetWeekDates = getWeekDates(toWeekId);
+        const dateOffset = targetWeekDates[0].getTime() - sourceWeekDates[0].getTime();
+
+        let copiedCount = 0;
+        for (const sourceDoc of sourceConstraints) {
+            const shiftedConstraints = sourceDoc.constraints.map(constraint => ({
+                date: new Date(new Date(constraint.date).getTime() + dateOffset),
+                shift: constraint.shift,
+                canWork: constraint.canWork,
+                availableFrom: constraint.availableFrom ?? null,
+                availableTo: constraint.availableTo ?? null,
+            }));
+
+            await Constraint.findOneAndUpdate(
+                { userId: sourceDoc.userId, weekId: toWeekId },
+                { $set: { constraints: shiftedConstraints, submittedAt: new Date() } },
+                { new: true, upsert: true }
+            );
+            copiedCount++;
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `הועתקו אילוצים ל-${copiedCount} עובדים משבוע ${fromWeekId} לשבוע ${toWeekId}`,
+            count: copiedCount,
+        });
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ success: false, message: error.errors[0]?.message });
+        }
+        console.error('Error copying constraints:', error);
         return res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

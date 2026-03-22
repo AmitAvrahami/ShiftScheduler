@@ -4,7 +4,8 @@ import {
     getMyConstraints,
     getWeekConstraints,
     lockConstraints,
-    unlockConstraints
+    unlockConstraints,
+    copyWeekConstraints,
 } from '../controllers/constraintController';
 import { authenticate, managerMiddleware } from '../middleware/auth.middleware';
 
@@ -21,5 +22,6 @@ router.get('/my/:weekId', getMyConstraints);
 router.get('/week/:weekId', managerMiddleware, getWeekConstraints);
 router.patch('/lock/:weekId', managerMiddleware, lockConstraints);
 router.patch('/unlock/:weekId', managerMiddleware, unlockConstraints);
+router.post('/copy-week', managerMiddleware, copyWeekConstraints);
 
 export default router;

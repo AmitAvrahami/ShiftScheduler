@@ -6,7 +6,7 @@ import mongoose from 'mongoose';
 import { User } from '../models/User';
 import { Constraint } from '../models/Constraint';
 import { Schedule } from '../models/Schedule';
-import { getWeekDates } from '../utils/weekUtils';
+import { getWeekDates, getPreviousWeekId } from '../utils/weekUtils';
 
 const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -307,6 +307,68 @@ export const overrideConstraint = async (req: AuthRequest, res: Response) => {
             return res.status(400).json({ success: false, message: error.errors[0]?.message });
         }
         console.error('Error overriding constraint (admin):', error);
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+// POST /api/admin/constraints/copy-week
+export const copyConstraintsFromPreviousWeek = async (req: AuthRequest, res: Response) => {
+    try {
+        const { fromWeekId, toWeekId } = z.object({
+            fromWeekId: weekIdSchema,
+            toWeekId: weekIdSchema,
+        }).parse(req.body);
+
+        // Fetch all constraints for the source week
+        const sourceConstraints = await Constraint.find({ weekId: fromWeekId });
+
+        if (sourceConstraints.length === 0) {
+            return res.status(200).json({
+                success: true,
+                message: 'לא נמצאו אילוצים בשבוע המקור',
+                count: 0,
+            });
+        }
+
+        // Get the date offset (7 days)
+        const sourceWeekDates = getWeekDates(fromWeekId);
+        const targetWeekDates = getWeekDates(toWeekId);
+        const dateOffset = targetWeekDates[0].getTime() - sourceWeekDates[0].getTime();
+
+        let copiedCount = 0;
+
+        // Copy constraints for each user
+        for (const sourceConstraintDoc of sourceConstraints) {
+            const shiftedConstraints = sourceConstraintDoc.constraints.map(constraint => ({
+                ...constraint,
+                date: new Date(new Date(constraint.date).getTime() + dateOffset),
+            }));
+
+            await Constraint.findOneAndUpdate(
+                { userId: sourceConstraintDoc.userId, weekId: toWeekId },
+                {
+                    $set: {
+                        constraints: shiftedConstraints,
+                        submittedAt: new Date(),
+                        // Note: NOT setting isLocked: true per user preference
+                    },
+                },
+                { new: true, upsert: true }
+            );
+
+            copiedCount++;
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `הועתקו אילוצים ל-${copiedCount} עובדים משבוע ${fromWeekId} לשבוע ${toWeekId}`,
+            count: copiedCount,
+        });
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ success: false, message: error.errors[0]?.message });
+        }
+        console.error('Error copying constraints (admin):', error);
         return res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

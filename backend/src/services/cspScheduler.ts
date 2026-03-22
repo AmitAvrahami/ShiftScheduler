@@ -120,6 +120,8 @@ type EmpSchedule = Map<string, ShiftType>;
 const SHIFT_ORDER: Record<ShiftType, number> = { morning: 0, afternoon: 1, night: 2 };
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_SHIFTS_PER_WEEK = 6;
+const MAX_NIGHT_SHIFTS_PER_WEEK = 2;
+const MAX_WEEKEND_SHIFTS_PER_WEEK = 2;
 
 /**
  * Catastrophic penalty applied to afternoon→morning sequence assignments in
@@ -236,6 +238,8 @@ function parseVarId(varId: string): { dateKey: string; type: ShiftType; seatInde
  *   2b. Rest rule (night): no morning shift already assigned the next day
  *   3a. [strictMode] afternoon→morning: no afternoon shift the previous day (8|8 pattern)
  *   3b. [strictMode] afternoon→morning (reverse): no morning shift already on the next day
+ *   4. Night shift cap: no more than MAX_NIGHT_SHIFTS_PER_WEEK nights per employee
+ *   5. Weekend cap: no more than MAX_WEEKEND_SHIFTS_PER_WEEK weekend shifts per employee
  *
  * Uses dateKeyToDate for O(1) date lookup instead of O(n) weekDates.find().
  *
@@ -250,6 +254,8 @@ function isConsistent(
     type: ShiftType,
     empSchedules: Map<string, EmpSchedule>,
     dateKeyToDate: Map<string, Date>,
+    nightCounts: Map<string, number>,
+    weekendCounts: Map<string, number>,
     strictMode: boolean,
 ): boolean {
     const schedule = empSchedules.get(empId);
@@ -257,6 +263,16 @@ function isConsistent(
 
     // 0. Weekly shift cap — never allow a 7th shift
     if (schedule.size >= MAX_SHIFTS_PER_WEEK) return false;
+
+    // 1b. Night shift cap — no more than MAX_NIGHT_SHIFTS_PER_WEEK per week
+    if (type === 'night' && (nightCounts.get(empId) ?? 0) >= MAX_NIGHT_SHIFTS_PER_WEEK) return false;
+
+    // 1c. Weekend cap — no more than MAX_WEEKEND_SHIFTS_PER_WEEK per week
+    const slotDate = dateKeyToDate.get(dateKey);
+    if (slotDate) {
+        const dow = slotDate.getDay();
+        if ((dow === 5 || dow === 6) && (weekendCounts.get(empId) ?? 0) >= MAX_WEEKEND_SHIFTS_PER_WEEK) return false;
+    }
 
     // 1. Same-day double booking
     if (schedule.has(dateKey)) return false;
@@ -394,10 +410,11 @@ function orderValues(
             if (assigned.has(nbrId)) continue;
             if (domains.get(nbrId)!.has(empId)) pruned++;
         }
-        const total = assignmentCounts.get(empId) ?? 0;
-        const night = nightCounts.get(empId) ?? 0;
-        const weekend = weekendCounts.get(empId) ?? 0;
-        const fairnessPenalty = total + 2 * Math.pow(night, 2) + 1.5 * Math.pow(weekend, 2);
+        const fairnessPenalty = calculateEmployeeScore(
+            empId, v.type, v.dateKey,
+            nightCounts, weekendCounts, assignmentCounts,
+            dateKeyToDate,
+        );
 
         // In relaxed mode: add catastrophic penalty if this assignment creates an 8|8 pattern.
         // In strict mode: isConsistent() already blocks violators, so penalty is zero.
@@ -409,7 +426,8 @@ function orderValues(
             if (wouldViolate) softPenalty = SOFT_VIOLATION_WEIGHT;
         }
 
-        const penalty = softPenalty + fairnessPenalty + jitter * (Math.random() - 0.5);
+        // סיבוב קטן של ±2 לשבירת שוויון — קטן מדי לשנות סדר בין מועמדים עם ציונים שונים
+        const penalty = softPenalty + fairnessPenalty + (Math.random() * 4 - 2);
         return { empId, pruned, penalty };
     });
 
@@ -431,7 +449,49 @@ function deepCopyEmpSchedules(schedules: Map<string, EmpSchedule>): Map<string, 
     return copy;
 }
 
-/** Sum of exponential penalties — lower means fairer night/weekend distribution. */
+/**
+ * מחשב ציון עדיפות לעובד עבור משמרת ספציפית.
+ * ציון נמוך יותר = עדיפות גבוהה יותר לשיבוץ.
+ *
+ * הציון מורכב מ:
+ * - קנס עומס כולל: +10 לכל משמרת שכבר שובצה השבוע
+ * - קנס משמרות לילה: +20 לכל לילה שכבר שובץ (שם משמרות לילה אבן חלוקה)
+ * - קנס ריכוז סוף שבוע: +30 אם העובד כבר שובץ בשישי/שבת ומשמרת זו היא גם סוף שבוע
+ */
+function calculateEmployeeScore(
+    empId: string,
+    shiftType: ShiftType,
+    dateKey: string,
+    nightCounts: Map<string, number>,
+    weekendCounts: Map<string, number>,
+    assignmentCounts: Map<string, number>,
+    dateKeyToDate: Map<string, Date>,
+): number {
+    const totalShifts = assignmentCounts.get(empId) ?? 0;
+    const nightShifts = nightCounts.get(empId) ?? 0;
+    const weekendShifts = weekendCounts.get(empId) ?? 0;
+
+    // קנס עומס כולל: +10 לכל משמרת שכבר שובצה השבוע
+    let score = totalShifts * 10;
+
+    // קנס משמרות לילה: +20 לכל לילה שכבר שובץ
+    score += nightShifts * 20;
+
+    // קנס ריכוז סוף שבוע: אם העובד כבר שובץ בשישי/שבת
+    // ומשמרת זו היא גם סוף שבוע — קנס +30
+    const date = dateKeyToDate.get(dateKey);
+    if (date) {
+        const dow = date.getDay();
+        const isWeekendSlot = dow === 5 || dow === 6; // 5=Friday, 6=Saturday
+        if (isWeekendSlot && weekendShifts > 0) {
+            score += 30;
+        }
+    }
+
+    return score;
+}
+
+/** Sum of linear penalties — lower means fairer night/weekend distribution. */
 function computeTotalPenalty(
     nightCounts: Map<string, number>,
     weekendCounts: Map<string, number>,
@@ -441,7 +501,8 @@ function computeTotalPenalty(
     for (const empId of allEmps) {
         const night = nightCounts.get(empId) ?? 0;
         const weekend = weekendCounts.get(empId) ?? 0;
-        total += 2 * night * night + 1.5 * weekend * weekend;
+        // עקבי עם calculateEmployeeScore: קנס לינארי לשיבוץ ריכוזי
+        total += night * 20 + (weekend > 1 ? 30 : 0);
     }
     return total;
 }
@@ -473,7 +534,7 @@ function backtrack(
     );
 
     for (const empId of orderedValues) {
-        if (!isConsistent(empId, v.dateKey, v.type, empSchedules, dateKeyToDate, strictMode)) continue;
+        if (!isConsistent(empId, v.dateKey, v.type, empSchedules, dateKeyToDate, nightCounts, weekendCounts, strictMode)) continue;
 
         // Assign
         assignment.set(v.id, empId);
@@ -565,13 +626,13 @@ function backtrack(
 /**
  * Single-shift reassignment local search.
  * For each assigned CSP var, tries every other eligible employee from the
- * original domain. If reassigning reduces the total exponential penalty AND
+ * original domain. If reassigning reduces the total linear penalty AND
  * the new assignment passes all hard constraints, the swap is applied immediately.
  *
- * Penalty formula per employee: 2×night² + 1.5×weekend² + 0.5×total²
- *   - night/weekend terms: discourage concentration of burdensome shifts
- *   - total² term (weight 0.5): balances overall shift load across employees
- *     Fires when countA > countB + 1 (moves any shift from overloaded to underloaded)
+ * Penalty formula per employee: night×20 + (weekend>1 ? 30 : 0) + total×10
+ *   - night term (×20): strong penalty for night shift concentration
+ *   - weekend term (30 only if >1): penalty for Friday+Saturday clustering
+ *   - total term (×10): gentle load balancing across all employees
  *
  * Runs up to MAX_PASSES full sweeps or until no improving swap is found.
  */
@@ -587,6 +648,10 @@ function localSearchImprovement(
     strictMode: boolean,
 ): void {
     const MAX_PASSES = 3;
+    // Helper: compute per-employee penalty using linear formula
+    const empPenalty = (night: number, weekend: number, count: number): number =>
+        night * 20 + (weekend > 1 ? 30 : 0) + count * 10;
+
     for (let pass = 0; pass < MAX_PASSES; pass++) {
         let improved = false;
         for (const v of cspVars) {
@@ -598,10 +663,10 @@ function localSearchImprovement(
             const nightA = nightCounts.get(empA) ?? 0;
             const weekendA = weekendCounts.get(empA) ?? 0;
             const countA = assignmentCounts.get(empA) ?? 0;
-            const beforeA = 2 * nightA * nightA + 1.5 * weekendA * weekendA + 0.5 * countA * countA;
+            const beforeA = empPenalty(nightA, weekendA, countA);
             const afterNightA = isNight ? nightA - 1 : nightA;
             const afterWeekendA = isWeekend ? weekendA - 1 : weekendA;
-            const afterA = 2 * afterNightA * afterNightA + 1.5 * afterWeekendA * afterWeekendA + 0.5 * (countA - 1) * (countA - 1);
+            const afterA = empPenalty(afterNightA, afterWeekendA, countA - 1);
 
             for (const empB of baselineDomains.get(v.id) ?? []) {
                 if (empB === empA) continue;
@@ -609,7 +674,7 @@ function localSearchImprovement(
                 // Temporarily remove empA to test if empB is consistent
                 const schedA = empSchedules.get(empA)!;
                 schedA.delete(v.dateKey);
-                const canWork = isConsistent(empB, v.dateKey, v.type, empSchedules, dateKeyToDate, strictMode);
+                const canWork = isConsistent(empB, v.dateKey, v.type, empSchedules, dateKeyToDate, nightCounts, weekendCounts, strictMode);
                 schedA.set(v.dateKey, v.type); // always restore
 
                 if (!canWork) continue;
@@ -617,10 +682,10 @@ function localSearchImprovement(
                 const nightB = nightCounts.get(empB) ?? 0;
                 const weekendB = weekendCounts.get(empB) ?? 0;
                 const countB = assignmentCounts.get(empB) ?? 0;
-                const beforeB = 2 * nightB * nightB + 1.5 * weekendB * weekendB + 0.5 * countB * countB;
+                const beforeB = empPenalty(nightB, weekendB, countB);
                 const afterNightB = isNight ? nightB + 1 : nightB;
                 const afterWeekendB = isWeekend ? weekendB + 1 : weekendB;
-                const afterB = 2 * afterNightB * afterNightB + 1.5 * afterWeekendB * afterWeekendB + 0.5 * (countB + 1) * (countB + 1);
+                const afterB = empPenalty(afterNightB, afterWeekendB, countB + 1);
 
                 if ((afterA + afterB) < (beforeA + beforeB)) {
                     // Apply reassignment
@@ -649,7 +714,7 @@ function localSearchImprovement(
 /**
  * Pairwise swap local search.
  * Tries all pairs of assigned vars (v1, v2) and checks if swapping their
- * employees (empA ↔ empB) reduces the total exponential penalty.
+ * employees (empA ↔ empB) reduces the total linear penalty.
  * Complements localSearchImprovement by escaping situations where a single
  * reassignment cannot improve fairness but a two-employee swap can.
  * Runs up to MAX_PASSES sweeps or until no improving swap is found.
@@ -665,6 +730,11 @@ function swapSearchImprovement(
     strictMode: boolean,
 ): void {
     const MAX_PASSES = 2;
+    // Helper: compute per-employee penalty using linear formula
+    // Note: for swaps, count doesn't change per employee, so pass 0 for count term
+    const empPenalty = (night: number, weekend: number): number =>
+        night * 20 + (weekend > 1 ? 30 : 0);
+
     for (let pass = 0; pass < MAX_PASSES; pass++) {
         let improved = false;
         const varList = cspVars.filter(v => assignment.has(v.id));
@@ -685,9 +755,7 @@ function swapSearchImprovement(
                 const nightB = nightCounts.get(empB) ?? 0;
                 const weekendA = weekendCounts.get(empA) ?? 0;
                 const weekendB = weekendCounts.get(empB) ?? 0;
-                const beforePenalty =
-                    2 * nightA * nightA + 1.5 * weekendA * weekendA +
-                    2 * nightB * nightB + 1.5 * weekendB * weekendB;
+                const beforePenalty = empPenalty(nightA, weekendA) + empPenalty(nightB, weekendB);
 
                 const isNightV1 = v1.type === 'night';
                 const isNightV2 = v2.type === 'night';
@@ -699,9 +767,7 @@ function swapSearchImprovement(
                 const newNightB = nightB - (isNightV2 ? 1 : 0) + (isNightV1 ? 1 : 0);
                 const newWeekendA = weekendA - (isWeekendV1 ? 1 : 0) + (isWeekendV2 ? 1 : 0);
                 const newWeekendB = weekendB - (isWeekendV2 ? 1 : 0) + (isWeekendV1 ? 1 : 0);
-                const afterPenalty =
-                    2 * newNightA * newNightA + 1.5 * newWeekendA * newWeekendA +
-                    2 * newNightB * newNightB + 1.5 * newWeekendB * newWeekendB;
+                const afterPenalty = empPenalty(newNightA, newWeekendA) + empPenalty(newNightB, newWeekendB);
 
                 if (afterPenalty >= beforePenalty) continue;
 
@@ -710,8 +776,8 @@ function swapSearchImprovement(
                 const schedB = empSchedules.get(empB)!;
                 schedA.delete(v1.dateKey);
                 schedB.delete(v2.dateKey);
-                const canAonV2 = isConsistent(empA, v2.dateKey, v2.type, empSchedules, dateKeyToDate, strictMode);
-                const canBonV1 = isConsistent(empB, v1.dateKey, v1.type, empSchedules, dateKeyToDate, strictMode);
+                const canAonV2 = isConsistent(empA, v2.dateKey, v2.type, empSchedules, dateKeyToDate, nightCounts, weekendCounts, strictMode);
+                const canBonV1 = isConsistent(empB, v1.dateKey, v1.type, empSchedules, dateKeyToDate, nightCounts, weekendCounts, strictMode);
                 // Always restore before deciding
                 schedA.set(v1.dateKey, v1.type);
                 schedB.set(v2.dateKey, v2.type);
@@ -784,7 +850,7 @@ function softViolationElimination(
 
                 // Temporarily remove empA to test consistency for empB
                 schedA.delete(v.dateKey);
-                const canWork = isConsistent(empB, v.dateKey, v.type, empSchedules, dateKeyToDate, false);
+                const canWork = isConsistent(empB, v.dateKey, v.type, empSchedules, dateKeyToDate, nightCounts, weekendCounts, false);
 
                 // Ensure empB itself does not introduce a new soft violation
                 const wouldViolate = canWork && (
@@ -1094,7 +1160,7 @@ export function solveCsp(input: CSPInput): CSPResult {
                 if (constraintMap[empId]?.[v.dateKey]?.[v.type]) return false;
                 if (partialConstraintMap[empId]?.[v.dateKey]?.[v.type]?.shouldBlock) return false;
                 if ((assignmentCounts.get(empId) ?? 0) >= MAX_SHIFTS_PER_WEEK) return false;
-                return isConsistent(empId, v.dateKey, v.type, empSchedules, dateKeyToDate, false);
+                return isConsistent(empId, v.dateKey, v.type, empSchedules, dateKeyToDate, new Map(), new Map(), false);
             })
             .sort((a, b) =>
                 (assignmentCounts.get(a._id.toString()) ?? 0) -

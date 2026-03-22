@@ -181,6 +181,8 @@ export const adminAPI = {
             availableTo?: string | null;
         }>
     ) => api.patch(`/admin/constraints/${userId}/${weekId}`, { constraints }),
+    copyConstraintsFromPreviousWeek: (fromWeekId: string, toWeekId: string) =>
+        api.post('/constraints/copy-week', { fromWeekId, toWeekId }),
     getAllSchedules: () =>
         api.get('/admin/schedules'),
     forceDeleteSchedule: (weekId: string) =>

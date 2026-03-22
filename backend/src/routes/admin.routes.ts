@@ -7,6 +7,7 @@ import {
     deleteUser,
     getAllConstraints,
     overrideConstraint,
+    copyConstraintsFromPreviousWeek,
     getAllSchedules,
     forceDeleteSchedule,
 } from '../controllers/adminController';
@@ -30,6 +31,7 @@ router.delete('/users/:id', deleteUser);
 // Constraints
 router.get('/constraints', getAllConstraints);
 router.patch('/constraints/:userId/:weekId', overrideConstraint);
+router.post('/constraints/copy-week', copyConstraintsFromPreviousWeek);
 
 // Schedules
 router.get('/schedules', getAllSchedules);
