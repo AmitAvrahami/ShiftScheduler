@@ -143,6 +143,8 @@ export const notificationAPI = {
         api.get('/notifications'),
     markAsRead: (id: string) =>
         api.patch(`/notifications/${id}/read`),
+    create: (data: { employeeId: string; type: string; message: string }) =>
+        api.post('/notifications', data),
 };
 
 export const adminAPI = {

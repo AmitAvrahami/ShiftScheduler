@@ -66,3 +66,35 @@ export const markAsRead = async (req: AuthRequest, res: Response) => {
         return res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
+
+/**
+ * POST /api/notifications  [MANAGER ONLY]
+ *
+ * Creates a new notification (e.g. constraint_reminder).
+ *
+ * @param req - { body: { employeeId: string, type: NotificationType, message: string } }
+ * @param res - 201 with the created notification
+ */
+export const createNotification = async (req: AuthRequest, res: Response) => {
+    try {
+        const { employeeId, type, message } = req.body;
+
+        if (!employeeId || !type || !message) {
+            return res.status(400).json({ success: false, message: 'Missing required fields' });
+        }
+
+        const notification = new Notification({
+            userId: employeeId,
+            type,
+            message,
+            weekId: 'N/A' // placeholder or pass from body if relevant
+        });
+
+        await notification.save();
+
+        return res.status(201).json({ success: true, data: notification });
+    } catch (error) {
+        console.error('Error creating notification:', error);
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
