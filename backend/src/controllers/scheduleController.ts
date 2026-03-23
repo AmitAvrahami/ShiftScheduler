@@ -240,6 +240,7 @@ export const getMySchedule = async (req: AuthRequest, res: Response) => {
  * @param res - success message
  */
 export const deleteSchedule = async (req: Request, res: Response) => {
+    const session = await mongoose.startSession();
     try {
         const { weekId } = req.params;
         weekIdSchema.parse(weekId);
@@ -258,31 +259,38 @@ export const deleteSchedule = async (req: Request, res: Response) => {
             });
         }
 
-        const schedule = await Schedule.findOneAndDelete({ weekStartDate });
-        if (!schedule) {
-            return res.status(404).json({ success: false, message: 'לא נמצא סידור לשבוע זה' });
-        }
-
         const startDateStr = weekStartDate.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
         const endDateStr = weekEndDate.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
 
-        const activeUsers = await User.find({ isActive: true }).select('_id');
-        const notifications = activeUsers.map(user => ({
-            userId: user._id,
-            type: 'schedule_deleted' as const,
-            message: `הסידור לתאריכים ${startDateStr} - ${endDateStr} בוטל. סידור חדש יפורסם בהמשך.`,
-            weekId,
-            isRead: false,
-        }));
-        await Notification.insertMany(notifications);
+        await session.withTransaction(async () => {
+            const schedule = await Schedule.findOneAndDelete({ weekStartDate }, { session });
+            if (!schedule) {
+                throw new Error('NOT_FOUND');
+            }
+
+            const activeUsers = await User.find({ isActive: true }).session(session).select('_id');
+            const notifications = activeUsers.map(user => ({
+                userId: user._id,
+                type: 'schedule_deleted' as const,
+                message: `הסידור לתאריכים ${startDateStr} - ${endDateStr} בוטל. סידור חדש יפורסם בהמשך.`,
+                weekId,
+                isRead: false,
+            }));
+            await Notification.insertMany(notifications, { session });
+        });
 
         return res.status(200).json({ success: true, message: 'הסידור נמחק בהצלחה' });
-    } catch (error) {
+    } catch (error: any) {
+        if (error.message === 'NOT_FOUND') {
+            return res.status(404).json({ success: false, message: 'לא נמצא סידור לשבוע זה' });
+        }
         if (error instanceof z.ZodError) {
             return res.status(400).json({ success: false, message: error.errors[0]?.message });
         }
         console.error('Error deleting schedule:', error);
         return res.status(500).json({ success: false, message: 'Internal server error' });
+    } finally {
+        await session.endSession();
     }
 };
 

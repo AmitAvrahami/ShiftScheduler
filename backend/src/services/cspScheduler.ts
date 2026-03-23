@@ -922,8 +922,10 @@ export function solveCsp(input: CSPInput): CSPResult {
         const available = managers
             .filter(m => {
                 const mId = m._id.toString();
-                return !constraintMap[mId]?.[slot.dateKey]?.['morning']
-                    && !partialConstraintMap[mId]?.[slot.dateKey]?.['morning']?.shouldBlock;
+                if ((assignmentCounts.get(mId) ?? 0) >= MAX_SHIFTS_PER_WEEK) return false;
+                if (constraintMap[mId]?.[slot.dateKey]?.['morning']) return false;
+                if (partialConstraintMap[mId]?.[slot.dateKey]?.['morning']?.shouldBlock) return false;
+                return true;
             })
             .sort((a, b) =>
                 (assignmentCounts.get(a._id.toString()) ?? 0) -

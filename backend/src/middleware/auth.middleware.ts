@@ -32,7 +32,7 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
 
 export const managerMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
     const userRole = req.user?.role;
-    if (userRole !== 'manager') {
+    if (!['manager', 'admin'].includes(userRole ?? '')) {
         return res.status(403).json({ message: 'Access denied. Manager role required.' });
     }
     next();
