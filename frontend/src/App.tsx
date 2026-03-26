@@ -8,7 +8,9 @@ import ScheduleManagerPage from './pages/ScheduleManagerPage';
 import MySchedulePage from './pages/MySchedulePage';
 import ScheduleViewPage from './pages/ScheduleViewPage';
 import EmployeeManagementPage from './pages/EmployeeManagementPage';
+import EmployeeProfilePage from './pages/EmployeeProfilePage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import AutomatedSchedulerPage from './pages/AutomatedSchedulerPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { useAuthStore } from './store/authStore';
 
@@ -62,11 +64,21 @@ function App() {
                         {isManager ? <ScheduleManagerPage /> : <Navigate to="/dashboard" replace />}
                     </ProtectedRoute>
                 } />
+                <Route path="/manager/schedule/auto" element={
+                    <ProtectedRoute>
+                        {isManager ? <AutomatedSchedulerPage /> : <Navigate to="/dashboard" replace />}
+                    </ProtectedRoute>
+                } />
 
                 {/* Manager-only employee management */}
                 <Route path="/manager/employees" element={
                     <ProtectedRoute>
                         {isManager ? <EmployeeManagementPage /> : <Navigate to="/dashboard" replace />}
+                    </ProtectedRoute>
+                } />
+                <Route path="/manager/employees/:id" element={
+                    <ProtectedRoute>
+                        {isManager ? <EmployeeProfilePage /> : <Navigate to="/dashboard" replace />}
                     </ProtectedRoute>
                 } />
 

@@ -5,6 +5,11 @@ import mongoose from 'mongoose';
 import notificationRoutes from '../../routes/notification.routes';
 import { User } from '../../models/User';
 import { Notification } from '../../models/Notification';
+import { setupTestDatabase, teardownTestDatabase, clearCollections } from '../../test/dbSetup';
+
+beforeAll(setupTestDatabase);
+afterAll(teardownTestDatabase);
+afterEach(clearCollections);
 
 const app = express();
 app.use(express.json());

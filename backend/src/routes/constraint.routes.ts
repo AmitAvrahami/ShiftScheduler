@@ -6,6 +6,7 @@ import {
     lockConstraints,
     unlockConstraints,
     copyWeekConstraints,
+    overrideConstraintByManager,
 } from '../controllers/constraintController';
 import { authenticate, managerMiddleware } from '../middleware/auth.middleware';
 
@@ -23,5 +24,6 @@ router.get('/week/:weekId', managerMiddleware, getWeekConstraints);
 router.patch('/lock/:weekId', managerMiddleware, lockConstraints);
 router.patch('/unlock/:weekId', managerMiddleware, unlockConstraints);
 router.post('/copy-week', managerMiddleware, copyWeekConstraints);
+router.patch('/override/:userId/:weekId', managerMiddleware, overrideConstraintByManager);
 
 export default router;

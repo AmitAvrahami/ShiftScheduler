@@ -136,6 +136,18 @@ export const constraintAPI = {
     /** Returns all employee constraints for a given week — manager only. */
     getWeekConstraints: (weekId: string) =>
         api.get(`/constraints/week/${weekId}`),
+    /** Overrides an employee's constraints for a week — manager only. Sets isLocked: true. */
+    managerOverride: (
+        userId: string,
+        weekId: string,
+        constraints: Array<{
+            date: string;
+            shift: 'morning' | 'afternoon' | 'night';
+            canWork: boolean;
+            availableFrom?: string | null;
+            availableTo?: string | null;
+        }>
+    ) => api.patch(`/constraints/override/${userId}/${weekId}`, { constraints }),
 };
 
 export const notificationAPI = {

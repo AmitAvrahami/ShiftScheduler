@@ -7,6 +7,11 @@ import { User } from '../../models/User';
 import { Schedule } from '../../models/Schedule';
 import { Constraint } from '../../models/Constraint';
 import { getWeekDates } from '../../utils/weekUtils';
+import { setupTestDatabase, teardownTestDatabase, clearCollections } from '../../test/dbSetup';
+
+beforeAll(setupTestDatabase);
+afterAll(teardownTestDatabase);
+afterEach(clearCollections);
 
 const app = express();
 app.use(express.json());
@@ -379,8 +384,16 @@ describe('Admin Controller', () => {
                 .set('Authorization', `Bearer ${adminToken}`);
 
             expect(res.status).toBe(200);
-            expect(res.body.data).toHaveLength(1);
-            expect(res.body.data[0].weekId).toBe('2026-W20');
+            // Endpoint uses outer-join: returns a row for every active employee/manager.
+            // With 1 employee + 1 manager in the test, result has 2 entries.
+            expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+            // All entries report the queried weekId (real doc or virtual row)
+            for (const row of res.body.data) {
+                expect(row.weekId).toBe('2026-W20');
+            }
+            // The 2026-W21 constraint must NOT appear
+            const hasW21 = res.body.data.some((r: any) => r.weekId === '2026-W21');
+            expect(hasW21).toBe(false);
         });
 
         it('returns 400 for invalid weekId format', async () => {

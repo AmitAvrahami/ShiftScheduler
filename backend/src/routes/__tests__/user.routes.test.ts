@@ -4,6 +4,11 @@ import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import userRoutes from '../../routes/user.routes';
 import { User } from '../../models/User';
+import { setupTestDatabase, teardownTestDatabase, clearCollections } from '../../test/dbSetup';
+
+beforeAll(setupTestDatabase);
+afterAll(teardownTestDatabase);
+afterEach(clearCollections);
 
 const app = express();
 app.use(express.json());

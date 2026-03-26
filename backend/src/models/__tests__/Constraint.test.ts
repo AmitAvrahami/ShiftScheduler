@@ -1,5 +1,10 @@
 import mongoose from 'mongoose';
 import { Constraint } from '../Constraint';
+import { setupTestDatabase, teardownTestDatabase, clearCollections } from '../../test/dbSetup';
+
+beforeAll(setupTestDatabase);
+afterAll(teardownTestDatabase);
+afterEach(clearCollections);
 
 describe('Constraint Model', () => {
     it('creates a valid constraint document successfully', async () => {
