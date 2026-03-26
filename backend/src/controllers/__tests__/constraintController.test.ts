@@ -5,6 +5,11 @@ import mongoose from 'mongoose';
 import constraintRoutes from '../../routes/constraint.routes';
 import { User } from '../../models/User';
 import { Constraint } from '../../models/Constraint';
+import { setupTestDatabase, teardownTestDatabase, clearCollections } from '../../test/dbSetup';
+
+beforeAll(setupTestDatabase);
+afterAll(teardownTestDatabase);
+afterEach(clearCollections);
 
 const app = express();
 app.use(express.json());

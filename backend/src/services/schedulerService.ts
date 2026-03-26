@@ -125,7 +125,11 @@ function getRequiredHeadcount(dayOfWeek: number, shiftType: ShiftType): number {
     return shiftType === 'night' ? 1 : 2;
 }
 
-function buildShiftSlots(weekDates: Date[]): ShiftSlot[] {
+/**
+ * Builds 21 ShiftSlot objects (7 days × 3 shift types) for the given week.
+ * Exported so test files can build the same slots without depending on DB.
+ */
+export function buildShiftSlots(weekDates: Date[]): ShiftSlot[] {
     const shiftTypes: ShiftType[] = ['morning', 'afternoon', 'night'];
     const slots: ShiftSlot[] = [];
     for (const date of weekDates) {
@@ -142,21 +146,35 @@ function buildShiftSlots(weekDates: Date[]): ShiftSlot[] {
     return slots;
 }
 
-// ─── Main Entry Point ─────────────────────────────────────────────────────────
+// ─── Pure Schedule Runner ─────────────────────────────────────────────────────
 
 /**
- * Generates a weekly shift schedule using a CSP algorithm with backtracking,
- * MRV variable ordering, LCV value ordering, and forward checking.
+ * Pure scheduling function — no DB calls. Takes pre-fetched data as parameters.
+ * Call this directly from tests to avoid any database dependency.
  *
- * Does NOT save to DB — the calling controller handles persistence.
+ * ```mermaid
+ * sequenceDiagram
+ *     participant Caller
+ *     participant runSchedulePure
+ *     participant solveCsp
+ *     Caller->>runSchedulePure: employees, constraintDocs, weekId
+ *     runSchedulePure->>runSchedulePure: buildConstraintMap, buildShiftSlots
+ *     runSchedulePure->>solveCsp: CSPInput
+ *     solveCsp-->>runSchedulePure: CSPResult
+ *     runSchedulePure-->>Caller: shifts, warnings, reports
+ * ```
+ *
+ * @param activeUsers - Pre-fetched active users (managers + employees)
+ * @param constraintDocs - Pre-fetched constraint documents for the week
+ * @param weekId - ISO week identifier (e.g. "2026-W11")
+ * @returns Shifts, warnings, partial assignments, and violation report
  */
-export async function generateWeekSchedule(
+export function runSchedulePure(
+    activeUsers: (IUser & { _id: Types.ObjectId })[],
+    constraintDocs: IConstraint[],
     weekId: string,
-): Promise<{ shifts: IShift[]; warnings: string[]; partialAssignments: PartialAssignment[]; constraintViolationReport: ConstraintViolationReport }> {
+): { shifts: IShift[]; warnings: string[]; partialAssignments: PartialAssignment[]; constraintViolationReport: ConstraintViolationReport } {
     const warnings: string[] = [];
-
-    const activeUsers = await User.find({ isActive: true, role: { $ne: 'admin' } }).lean<(IUser & { _id: Types.ObjectId })[]>();
-    const constraintDocs = await Constraint.find({ weekId }).lean<IConstraint[]>();
 
     const hasLockedConstraints = constraintDocs.some(c => c.isLocked);
     if (!hasLockedConstraints) {
@@ -195,9 +213,6 @@ export async function generateWeekSchedule(
     }
 
     // ── Classify capacity-limited critical violations ─────────────────────────
-    // If all eligible regular employees (ignoring the shift cap) have reached
-    // 6 assignments, report the violation as a capacity issue rather than
-    // a generic understaffing, so the manager knows to add more staff.
     const finalAssignmentList = [...cspResult.assignments.values()];
     for (const cv of criticalViolations) {
         const eligibleIgnoringCap = activeUsers.filter(emp => {
@@ -218,9 +233,6 @@ export async function generateWeekSchedule(
     }
 
     // ── Detect tight-turnaround sequence warnings ────────────────────────────
-    // Afternoon shift ends at 22:45 → next-day morning starts at 06:45 = exactly 8h rest.
-    // While technically meeting the 8h minimum, this is a physically demanding pattern
-    // that managers should be aware of.
     const sequenceWarnings: SequenceWarning[] = [];
     const employeeAssignmentMap = new Map<string, { dateKey: string; type: ShiftType }[]>();
     for (const shift of assignedShifts) {
@@ -233,7 +245,6 @@ export async function generateWeekSchedule(
     for (const [empId, assignments] of employeeAssignmentMap) {
         for (const currentAssignment of assignments) {
             if (currentAssignment.type !== 'afternoon') continue;
-            // Compute next day's dateKey
             const currentDate = weekDates.find(d => toDateKey(d) === currentAssignment.dateKey);
             if (!currentDate) continue;
             const nextDayKey = toDateKey(new Date(currentDate.getTime() + 24 * 60 * 60 * 1000));
@@ -271,7 +282,6 @@ export async function generateWeekSchedule(
     const fridayEmpIds = new Set<string>();
     const saturdayEmpIds = new Set<string>();
     for (const [varId, empId] of cspResult.assignments) {
-        // פורמט varId: "YYYY-MM-DD_shiftType_seatIndex"
         const lastUnderscore = varId.lastIndexOf('_');
         const withoutSeat = varId.slice(0, lastUnderscore);
         const typeIdx = withoutSeat.lastIndexOf('_');
@@ -331,4 +341,23 @@ export async function generateWeekSchedule(
     }
 
     return { shifts: assignedShifts, warnings: [...new Set(warnings)], partialAssignments: cspResult.partialAssignments, constraintViolationReport };
+}
+
+// ─── Main Entry Point ─────────────────────────────────────────────────────────
+
+/**
+ * Generates a weekly shift schedule using a CSP algorithm with backtracking,
+ * MRV variable ordering, LCV value ordering, and forward checking.
+ *
+ * Does NOT save to DB — the calling controller handles persistence.
+ *
+ * @param weekId - ISO week identifier (e.g. "2026-W11")
+ * @returns Shifts, warnings, partial assignments, and violation report
+ */
+export async function generateWeekSchedule(
+    weekId: string,
+): Promise<{ shifts: IShift[]; warnings: string[]; partialAssignments: PartialAssignment[]; constraintViolationReport: ConstraintViolationReport }> {
+    const activeUsers = await User.find({ isActive: true, role: { $ne: 'admin' } }).lean<(IUser & { _id: Types.ObjectId })[]>();
+    const constraintDocs = await Constraint.find({ weekId }).lean<IConstraint[]>();
+    return runSchedulePure(activeUsers, constraintDocs, weekId);
 }

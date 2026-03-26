@@ -1,12 +1,24 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../types/express';
 import { z } from 'zod';
+import mongoose from 'mongoose';
 import { Constraint } from '../models/Constraint';
+import { User } from '../models/User';
 import { getWeekDates, getPreviousWeekId } from '../utils/weekUtils';
 
 const weekIdSchema = z.string().regex(/^\d{4}-W\d{2}$/, "Invalid week format");
 
 const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+const overrideConstraintSchema = z.object({
+    constraints: z.array(z.object({
+        date: z.string().or(z.date()).transform(val => new Date(val)),
+        shift: z.enum(['morning', 'afternoon', 'night']),
+        canWork: z.boolean(),
+        availableFrom: z.string().regex(timeRegex).nullable().optional(),
+        availableTo:   z.string().regex(timeRegex).nullable().optional(),
+    })).min(0),
+});
 
 // Define the incoming schema for validation
 const constraintSchema = z.object({
@@ -197,6 +209,48 @@ export const copyWeekConstraints = async (req: Request, res: Response) => {
             return res.status(400).json({ success: false, message: error.errors[0]?.message });
         }
         console.error('Error copying constraints:', error);
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+export const overrideConstraintByManager = async (req: AuthRequest, res: Response) => {
+    try {
+        const { userId, weekId } = req.params;
+
+        if (!mongoose.isValidObjectId(userId)) {
+            return res.status(400).json({ success: false, message: 'מזהה משתמש לא תקין' });
+        }
+
+        weekIdSchema.parse(weekId);
+
+        const targetUser = await User.findById(userId);
+        if (!targetUser) {
+            return res.status(404).json({ success: false, message: 'משתמש לא נמצא' });
+        }
+        if (targetUser.role === 'admin') {
+            return res.status(403).json({ success: false, message: 'לא ניתן לעקוף אילוצים של מנהל' });
+        }
+
+        const { constraints } = overrideConstraintSchema.parse(req.body);
+
+        const updated = await Constraint.findOneAndUpdate(
+            { userId, weekId },
+            {
+                $set: {
+                    constraints,
+                    submittedAt: new Date(),
+                    isLocked: true,
+                },
+            },
+            { new: true, upsert: true }
+        );
+
+        return res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ success: false, message: error.errors[0]?.message });
+        }
+        console.error('Error overriding constraint (manager):', error);
         return res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

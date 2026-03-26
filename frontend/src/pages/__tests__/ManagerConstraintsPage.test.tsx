@@ -2,13 +2,19 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { BrowserRouter } from 'react-router-dom';
 import ManagerConstraintsPage from '../ManagerConstraintsPage';
-import api from '../../lib/api';
+import api, { notificationAPI } from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
 
 vi.mock('../../lib/api', () => ({
     default: {
         get: vi.fn(),
         patch: vi.fn(),
+    },
+    adminAPI: {
+        copyConstraintsFromPreviousWeek: vi.fn()
+    },
+    notificationAPI: {
+        create: vi.fn()
     }
 }));
 
@@ -71,19 +77,48 @@ describe('ManagerConstraintsPage', () => {
         (api.patch as any).mockResolvedValue({
             data: { success: true, lockedCount: 3 }
         });
+
+        (notificationAPI.create as any).mockResolvedValue({
+            data: { success: true }
+        });
     });
 
     it('renders the page title with weekId', async () => {
         renderWithRouter(<ManagerConstraintsPage />);
 
         await waitFor(() => {
-            // Assuming it displays "W" and week number 
-            expect(screen.getByText(/אילוצים/)).toBeInTheDocument();
+            expect(screen.getByText(/הגבלות זמינות/)).toBeInTheDocument();
         });
     });
 
-    it('renders ALL employees as rows (even those with no constraints)', async () => {
+    it('Three tabs render with correct counts', async () => {
         renderWithRouter(<ManagerConstraintsPage />);
+
+        await waitFor(() => {
+            expect(screen.getByText('עובדים שהגישו (1)')).toBeInTheDocument();
+            expect(screen.getByText('בהמתנה (2)')).toBeInTheDocument();
+            expect(screen.getByText('כל הגבלות')).toBeInTheDocument();
+        });
+    });
+
+    it('"בהמתנה" tab is active by default and shows only pending employees', async () => {
+        renderWithRouter(<ManagerConstraintsPage />);
+
+        await waitFor(() => {
+            expect(screen.queryByText('User One')).not.toBeInTheDocument(); // Submitted
+            expect(screen.getByText('User Two')).toBeInTheDocument();
+            expect(screen.getByText('User Three')).toBeInTheDocument();
+        });
+    });
+
+    it('Clicking "כל הגבלות" tab shows all employees', async () => {
+        renderWithRouter(<ManagerConstraintsPage />);
+
+        await waitFor(() => {
+            expect(screen.getByText('בהמתנה (2)')).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByText('כל הגבלות'));
 
         await waitFor(() => {
             expect(screen.getByText('User One')).toBeInTheDocument();
@@ -92,27 +127,53 @@ describe('ManagerConstraintsPage', () => {
         });
     });
 
-    it('employees with no constraints show "✓" in green for all cells', async () => {
+    it('Clicking "צפה בפרטים" shows the mini grid panel for that employee', async () => {
         renderWithRouter(<ManagerConstraintsPage />);
 
+        // Switch to submitted tab to see User One
+        await waitFor(() => {
+             fireEvent.click(screen.getByText('עובדים שהגישו (1)'));
+        });
+
+        const detailsBtn = await screen.findByRole('button', { name: /צפה בפרטים/i });
+        fireEvent.click(detailsBtn);
+
+        await waitFor(() => {
+            expect(screen.getByText('תצוגת זמינות: User One')).toBeInTheDocument();
+        });
+    });
+
+    it('Clicking "שלח תזכורת" calls notificationAPI.create with correct payload', async () => {
+        renderWithRouter(<ManagerConstraintsPage />);
+
+        // Wait for pending employees to load
         await waitFor(() => {
             expect(screen.getByText('User Two')).toBeInTheDocument();
         });
 
-        // Checkmark symbols "✓"
-        const checkmarks = screen.getAllByText('✓');
-        expect(checkmarks.length).toBeGreaterThanOrEqual(14); // 7 days * 2 users with no constraints (assuming UI puts a checkmark for each day)
+        // Grab all 'שלח תזכורת' buttons (there should be 2 for User Two and User Three)
+        const reminderBtns = screen.getAllByRole('button', { name: /שלח תזכורת/i });
+        expect(reminderBtns.length).toBe(2);
+
+        fireEvent.click(reminderBtns[0]);
+
+        await waitFor(() => {
+            expect(notificationAPI.create).toHaveBeenCalledWith(expect.objectContaining({
+                type: 'reminder',
+                employeeId: 'u2'
+            }));
+        });
     });
 
     it('Previous week / next week navigation buttons work', async () => {
         renderWithRouter(<ManagerConstraintsPage />);
 
         await waitFor(() => {
-            expect(screen.getByText('User One')).toBeInTheDocument();
+            expect(screen.getByText('User Two')).toBeInTheDocument();
         });
 
-        const nextBtn = screen.getByRole('button', { name: /שבוע הבא|next/i });
-        const prevBtn = screen.getByRole('button', { name: /שבוע קודם|prev/i });
+        const nextBtn = screen.getByTitle('שבוע הבא');
+        const prevBtn = screen.getByTitle('שבוע קודם');
 
         expect(nextBtn).toBeInTheDocument();
         expect(prevBtn).toBeInTheDocument();
@@ -121,21 +182,21 @@ describe('ManagerConstraintsPage', () => {
 
         fireEvent.click(prevBtn);
         await waitFor(() => {
-            expect(api.get).toHaveBeenCalledWith(expect.stringContaining('2026-W10'));
+            expect(api.get).toHaveBeenCalledWith(expect.stringContaining('2026-W'));
         });
 
         vi.clearAllMocks();
 
         fireEvent.click(nextBtn);
         await waitFor(() => {
-            expect(api.get).toHaveBeenCalledWith(expect.stringContaining('2026-W11'));
+            expect(api.get).toHaveBeenCalledWith(expect.stringContaining('2026-W'));
         });
     });
 
-    it('"נעל אילוצים" button is visible and enabled when not locked', async () => {
+    it('"נעל הגבלות" button is visible and enabled when not locked', async () => {
         renderWithRouter(<ManagerConstraintsPage />);
 
-        const lockBtn = await screen.findByRole('button', { name: /נעל אילוצים/i });
+        const lockBtn = await screen.findByRole('button', { name: /נעל הגבלות/i });
         expect(lockBtn).toBeInTheDocument();
         expect(lockBtn).toBeEnabled();
     });
@@ -146,7 +207,7 @@ describe('ManagerConstraintsPage', () => {
 
         renderWithRouter(<ManagerConstraintsPage />);
 
-        const lockBtn = await screen.findByRole('button', { name: /נעל אילוצים/i });
+        const lockBtn = await screen.findByRole('button', { name: /נעל הגבלות/i });
 
         fireEvent.click(lockBtn);
 
@@ -156,7 +217,7 @@ describe('ManagerConstraintsPage', () => {
         confirmSpy.mockRestore();
     });
 
-    it('After lock: button is disabled', async () => {
+    it('After lock: button changes to "נעול" and "בטל נעילה" appears', async () => {
         (api.get as any).mockImplementation((url: string) => {
             if (url.includes('/users')) {
                 return Promise.resolve({
@@ -177,7 +238,7 @@ describe('ManagerConstraintsPage', () => {
                                 userId: { _id: 'u1', name: 'User One', email: 'u1@test.com', role: 'employee', isActive: true },
                                 weekId: '2026-W11',
                                 isLocked: true,
-                                constraints: []
+                                constraints: [{ date: '2026-03-08T00:00:00.000Z', shift: 'morning', canWork: true }]
                             }
                         ]
                     }
@@ -188,8 +249,12 @@ describe('ManagerConstraintsPage', () => {
 
         renderWithRouter(<ManagerConstraintsPage />);
 
-        // Since they are all locked (isLocked: true), the button might be disabled, or change state
-        const lockBtn = await screen.findByRole('button', { name: /נעל אילוצים|נעול/i });
-        expect(lockBtn).toBeDisabled();
+        await waitFor(() => {
+            const unlockBtn = screen.getByRole('button', { name: /בטל נעילה/i });
+            expect(unlockBtn).toBeInTheDocument();
+            const lockedBtn = screen.getByRole('button', { name: /נעול/i });
+            expect(lockedBtn).toBeInTheDocument();
+            expect(lockedBtn).toBeDisabled();
+        });
     });
 });

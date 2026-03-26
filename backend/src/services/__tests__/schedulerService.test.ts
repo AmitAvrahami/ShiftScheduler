@@ -2,6 +2,11 @@ import mongoose, { Types } from 'mongoose';
 import { User } from '../../models/User';
 import { Constraint } from '../../models/Constraint';
 import * as schedulerService from '../schedulerService';
+import { setupTestDatabase, teardownTestDatabase, clearCollections } from '../../test/dbSetup';
+
+beforeAll(setupTestDatabase);
+afterAll(teardownTestDatabase);
+afterEach(clearCollections);
 
 /** Local-time date key — matches cspScheduler's toDateKey and avoids UTC offset issues. */
 function toLocalDateKey(date: Date): string {

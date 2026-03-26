@@ -95,9 +95,9 @@ export interface CSPResult {
     /** Weekend (Fri+Sat) shift count per employeeId — used for fairness reporting */
     weekendCounts: Map<string, number>;
     /**
-     * Number of afternoon→morning "8|8" sequences in the final schedule.
-     * Zero means Phase A (strict) succeeded. >0 means Phase B was required
-     * and some soft violations were unavoidable.
+     * Number of afternoon→morning sequences in the final schedule.
+     * Always 0 — HC-2 is now an unconditional hard constraint enforced in all phases.
+     * Retained for API backward compatibility.
      */
     softViolationCount: number;
 }
@@ -115,6 +115,18 @@ interface CSPVar {
 /** dateKey → shiftType assigned on that day (for one employee) */
 type EmpSchedule = Map<string, ShiftType>;
 
+/** Per-employee soft-constraint context used for penalty scoring. */
+interface PenaltyContext {
+    totalShifts: number;
+    morningCount: number;
+    afternoonCount: number;
+    nightCount: number;
+    consecutiveNights: number;
+    weekendShifts: number;
+    lastShiftType: ShiftType | null;
+    lastShiftDay: number | null; // day-of-week 0=Sunday
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SHIFT_ORDER: Record<ShiftType, number> = { morning: 0, afternoon: 1, night: 2 };
@@ -122,14 +134,6 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_SHIFTS_PER_WEEK = 6;
 const MAX_NIGHT_SHIFTS_PER_WEEK = 2;
 const MAX_WEEKEND_SHIFTS_PER_WEEK = 2;
-
-/**
- * Catastrophic penalty applied to afternoon→morning sequence assignments in
- * Phase B (relaxed mode). Must vastly exceed any fairness penalty so that
- * soft violations are chosen only when every non-violating assignment is
- * impossible.
- */
-const SOFT_VIOLATION_WEIGHT = 1_000_000;
 
 // ─── Pure Helpers ─────────────────────────────────────────────────────────────
 
@@ -155,41 +159,6 @@ function getAdjacentDateKey(
 ): string | null {
     const base = dateKeyToDate.get(dateKey);
     return base ? toDateKey(new Date(base.getTime() + offsetDays * DAY_MS)) : null;
-}
-
-/**
- * Returns true if assigning empId to a morning shift on dateKey would create
- * an afternoon→morning "8|8" sequence (employee worked afternoon the day before).
- * Afternoon ends 22:45, morning starts 06:45 — exactly 8h rest, which is
- * technically legal but physically demanding and should be a last resort.
- */
-function hasSoftViolation(
-    empId: string,
-    dateKey: string,
-    type: ShiftType,
-    empSchedules: Map<string, EmpSchedule>,
-    dateKeyToDate: Map<string, Date>,
-): boolean {
-    if (type !== 'morning') return false;
-    const prev = getAdjacentDateKey(dateKey, -1, dateKeyToDate);
-    return prev !== null && (empSchedules.get(empId)?.get(prev) === 'afternoon');
-}
-
-/**
- * Symmetric check: returns true if assigning empId to an afternoon shift on
- * dateKey would create an afternoon→morning "8|8" sequence because the employee
- * already has a morning shift committed on the next day.
- */
-function hasReverseSoftViolation(
-    empId: string,
-    dateKey: string,
-    type: ShiftType,
-    empSchedules: Map<string, EmpSchedule>,
-    dateKeyToDate: Map<string, Date>,
-): boolean {
-    if (type !== 'afternoon') return false;
-    const next = getAdjacentDateKey(dateKey, +1, dateKeyToDate);
-    return next !== null && (empSchedules.get(empId)?.get(next) === 'morning');
 }
 
 /**
@@ -234,19 +203,18 @@ function parseVarId(varId: string): { dateKey: string; type: ShiftType; seatInde
  * Checks:
  *   0. Weekly shift cap: no 7th shift
  *   1. No double booking on the same day
- *   2a. Rest rule (morning): no night shift the previous day
- *   2b. Rest rule (night): no morning shift already assigned the next day
- *   3a. [strictMode] afternoon→morning: no afternoon shift the previous day (8|8 pattern)
- *   3b. [strictMode] afternoon→morning (reverse): no morning shift already on the next day
+ *   2a. HC-2 rest rule (morning): no night shift the previous day
+ *   2b. HC-2 rest rule (night): no morning shift already assigned the next day
+ *   3a. HC-2 rest rule (morning): no afternoon shift the previous day (afternoon ends 22:45,
+ *       morning starts 06:45 — less than 8h rest, hard violation per PRD)
+ *   3b. HC-2 rest rule (afternoon reverse): no morning shift already committed the next day
  *   4. Night shift cap: no more than MAX_NIGHT_SHIFTS_PER_WEEK nights per employee
  *   5. Weekend cap: no more than MAX_WEEKEND_SHIFTS_PER_WEEK weekend shifts per employee
  *
- * Uses dateKeyToDate for O(1) date lookup instead of O(n) weekDates.find().
+ * All checks are unconditional hard constraints. The `strictMode` parameter is retained
+ * for call-site compatibility but no longer affects behaviour.
  *
- * @param strictMode - When true, the afternoon→morning "8|8" soft constraint is
- *   enforced as a hard rule. Phase A uses strictMode=true to guarantee zero soft
- *   violations when staffing allows. Phase B uses strictMode=false and relies on
- *   SOFT_VIOLATION_WEIGHT in orderValues() to discourage violations instead.
+ * Uses dateKeyToDate for O(1) date lookup instead of O(n) weekDates.find().
  */
 function isConsistent(
     empId: string,
@@ -256,7 +224,7 @@ function isConsistent(
     dateKeyToDate: Map<string, Date>,
     nightCounts: Map<string, number>,
     weekendCounts: Map<string, number>,
-    strictMode: boolean,
+    _strictMode: boolean,
 ): boolean {
     const schedule = empSchedules.get(empId);
     if (!schedule) return true;
@@ -277,26 +245,27 @@ function isConsistent(
     // 1. Same-day double booking
     if (schedule.has(dateKey)) return false;
 
-    // 2a. Rest rule (morning): no night shift the previous day
+    // 2a. HC-2: rest rule (morning) — no night shift the previous day
     if (type === 'morning') {
         const prevDayKey = getAdjacentDateKey(dateKey, -1, dateKeyToDate);
         if (prevDayKey && schedule.get(prevDayKey) === 'night') return false;
     }
 
-    // 2b. Rest rule (night): no morning shift already assigned the next day
+    // 2b. HC-2: rest rule (night) — no morning shift already assigned the next day
     if (type === 'night') {
         const nextDayKey = getAdjacentDateKey(dateKey, +1, dateKeyToDate);
         if (nextDayKey && schedule.get(nextDayKey) === 'morning') return false;
     }
 
-    // 3a. Soft-as-hard (strict mode only): block 8|8 pattern — morning after afternoon
-    if (strictMode && type === 'morning') {
+    // 3a. HC-2: rest rule (morning) — no afternoon shift the previous day
+    //     Afternoon ends 22:45, morning starts 06:45 — exactly 8h, violates minimum rest.
+    if (type === 'morning') {
         const prevDayKey = getAdjacentDateKey(dateKey, -1, dateKeyToDate);
         if (prevDayKey && schedule.get(prevDayKey) === 'afternoon') return false;
     }
 
-    // 3b. Soft-as-hard (strict mode only): block 8|8 pattern — afternoon before committed morning
-    if (strictMode && type === 'afternoon') {
+    // 3b. HC-2: rest rule (afternoon reverse) — no morning shift already committed the next day
+    if (type === 'afternoon') {
         const nextDayKey = getAdjacentDateKey(dateKey, +1, dateKeyToDate);
         if (nextDayKey && schedule.get(nextDayKey) === 'morning') return false;
     }
@@ -380,12 +349,10 @@ function selectVariable(
 /**
  * LCV + penalty-based fairness ordering:
  *   Primary sort:   fewest domain entries pruned across unassigned neighbours (LCV)
- *   Tiebreaker:     weighted penalty = softPenalty + total + 2×night² + 1.5×weekend²
+ *   Tiebreaker:     fairness penalty (total shifts × 10 + nights × 20 + weekend clustering × 30)
  *
- * In relaxed mode (strictMode=false), assignments that would create an afternoon→morning
- * "8|8" sequence are scored with SOFT_VIOLATION_WEIGHT (1,000,000), making them
- * chosen only when every non-violating candidate is impossible. In strict mode
- * (strictMode=true), isConsistent() already blocks such assignments, so softPenalty=0.
+ * HC-2 (afternoon→morning) is enforced as a hard constraint by isConsistent(), so
+ * violating candidates are never present in the domain when this function is called.
  *
  * Uses pre-computed neighbor adjacency for O(neighbors) LCV scoring
  * instead of scanning all CSP variables.
@@ -399,10 +366,12 @@ function orderValues(
     assignmentCounts: Map<string, number>,
     nightCounts: Map<string, number>,
     weekendCounts: Map<string, number>,
-    jitter: number,
+    morningCounts: Map<string, number>,
+    afternoonCounts: Map<string, number>,
     empSchedules: Map<string, EmpSchedule>,
     dateKeyToDate: Map<string, Date>,
-    strictMode: boolean,
+    regularEmployeeCount: number,
+    _strictMode: boolean,
 ): string[] {
     const scored = Array.from(domain).map(empId => {
         let pruned = 0;
@@ -410,28 +379,22 @@ function orderValues(
             if (assigned.has(nbrId)) continue;
             if (domains.get(nbrId)!.has(empId)) pruned++;
         }
-        const fairnessPenalty = calculateEmployeeScore(
+        const penalty = calculateEmployeeScore(
             empId, v.type, v.dateKey,
             nightCounts, weekendCounts, assignmentCounts,
-            dateKeyToDate,
+            morningCounts, afternoonCounts,
+            dateKeyToDate, empSchedules, regularEmployeeCount,
         );
-
-        // In relaxed mode: add catastrophic penalty if this assignment creates an 8|8 pattern.
-        // In strict mode: isConsistent() already blocks violators, so penalty is zero.
-        let softPenalty = 0;
-        if (!strictMode) {
-            const wouldViolate =
-                hasSoftViolation(empId, v.dateKey, v.type, empSchedules, dateKeyToDate) ||
-                hasReverseSoftViolation(empId, v.dateKey, v.type, empSchedules, dateKeyToDate);
-            if (wouldViolate) softPenalty = SOFT_VIOLATION_WEIGHT;
-        }
-
-        // סיבוב קטן של ±2 לשבירת שוויון — קטן מדי לשנות סדר בין מועמדים עם ציונים שונים
-        const penalty = softPenalty + fairnessPenalty + (Math.random() * 4 - 2);
         return { empId, pruned, penalty };
     });
 
-    scored.sort((a, b) => a.pruned - b.pruned || a.penalty - b.penalty);
+    // Primary: fewest neighbors pruned (LCV). Secondary: lowest penalty score.
+    // Final tiebreaker: _id string — guarantees deterministic order.
+    scored.sort((a, b) =>
+        a.pruned - b.pruned ||
+        a.penalty - b.penalty ||
+        a.empId.localeCompare(b.empId),
+    );
     return scored.map(s => s.empId);
 }
 
@@ -450,59 +413,156 @@ function deepCopyEmpSchedules(schedules: Map<string, EmpSchedule>): Map<string, 
 }
 
 /**
- * מחשב ציון עדיפות לעובד עבור משמרת ספציפית.
- * ציון נמוך יותר = עדיפות גבוהה יותר לשיבוץ.
+ * Builds a PenaltyContext for an employee relative to a candidate slot.
+ * Computed dynamically from empSchedules — safe under non-chronological backtracking.
+ */
+function buildPenaltyContext(
+    empId: string,
+    currentDateKey: string,
+    empSchedules: Map<string, EmpSchedule>,
+    assignmentCounts: Map<string, number>,
+    nightCounts: Map<string, number>,
+    weekendCounts: Map<string, number>,
+    morningCounts: Map<string, number>,
+    afternoonCounts: Map<string, number>,
+    dateKeyToDate: Map<string, Date>,
+): PenaltyContext {
+    const schedule = empSchedules.get(empId);
+
+    // Consecutive nights immediately before currentDateKey
+    let consecutiveNights = 0;
+    if (schedule) {
+        let k = getAdjacentDateKey(currentDateKey, -1, dateKeyToDate);
+        while (k && schedule.get(k) === 'night') {
+            consecutiveNights++;
+            k = getAdjacentDateKey(k, -1, dateKeyToDate);
+        }
+    }
+
+    // Most recent shift (chronologically) before currentDateKey
+    let lastShiftType: ShiftType | null = null;
+    let lastShiftDay: number | null = null;
+    if (schedule && schedule.size > 0) {
+        let k = getAdjacentDateKey(currentDateKey, -1, dateKeyToDate);
+        while (k) {
+            const t = schedule.get(k);
+            if (t !== undefined) {
+                lastShiftType = t;
+                lastShiftDay = dateKeyToDate.get(k)?.getDay() ?? null;
+                break;
+            }
+            k = getAdjacentDateKey(k, -1, dateKeyToDate);
+        }
+    }
+
+    return {
+        totalShifts: assignmentCounts.get(empId) ?? 0,
+        morningCount: morningCounts.get(empId) ?? 0,
+        afternoonCount: afternoonCounts.get(empId) ?? 0,
+        nightCount: nightCounts.get(empId) ?? 0,
+        consecutiveNights,
+        weekendShifts: weekendCounts.get(empId) ?? 0,
+        lastShiftType,
+        lastShiftDay,
+    };
+}
+
+/**
+ * Penalty-based candidate scoring. Lower score = better candidate.
  *
- * הציון מורכב מ:
- * - קנס עומס כולל: +10 לכל משמרת שכבר שובצה השבוע
- * - קנס משמרות לילה: +20 לכל לילה שכבר שובץ (שם משמרות לילה אבן חלוקה)
- * - קנס ריכוז סוף שבוע: +30 אם העובד כבר שובץ בשישי/שבת ומשמרת זו היא גם סוף שבוע
+ * Rules (additive, per spec):
+ *   SC-10  night → afternoon same-day finish (+100): night ends 06:45, afternoon starts 14:45
+ *   SC-11  afternoon → morning next day (+100): < 8 h rest [redundant with HC-2, kept for spec]
+ *   SC-12  3+ consecutive nights (+60)
+ *   SC-6   shift-type count above team average (+40)
+ *   SC-5   total shifts above team average (+40)
+ *   SC-7   weekend slot and weekend count above team average (+40)
+ *   SC-13/14 non-sequential transition: morning→night or night→morning (+20)
  */
 function calculateEmployeeScore(
     empId: string,
     shiftType: ShiftType,
-    dateKey: string,
+    currentDateKey: string,
     nightCounts: Map<string, number>,
     weekendCounts: Map<string, number>,
     assignmentCounts: Map<string, number>,
+    morningCounts: Map<string, number>,
+    afternoonCounts: Map<string, number>,
     dateKeyToDate: Map<string, Date>,
+    empSchedules: Map<string, EmpSchedule>,
+    regularEmployeeCount: number,
 ): number {
-    const totalShifts = assignmentCounts.get(empId) ?? 0;
-    const nightShifts = nightCounts.get(empId) ?? 0;
-    const weekendShifts = weekendCounts.get(empId) ?? 0;
+    const ctx = buildPenaltyContext(
+        empId, currentDateKey, empSchedules,
+        assignmentCounts, nightCounts, weekendCounts,
+        morningCounts, afternoonCounts, dateKeyToDate,
+    );
 
-    // קנס עומס כולל: +10 לכל משמרת שכבר שובצה השבוע
-    let score = totalShifts * 10;
+    const currentDate = dateKeyToDate.get(currentDateKey);
+    const isWeekendSlot = currentDate ? (currentDate.getDay() === 5 || currentDate.getDay() === 6) : false;
+    const n = regularEmployeeCount || 1;
 
-    // קנס משמרות לילה: +20 לכל לילה שכבר שובץ
-    score += nightShifts * 20;
+    let score = 0;
 
-    // קנס ריכוז סוף שבוע: אם העובד כבר שובץ בשישי/שבת
-    // ומשמרת זו היא גם סוף שבוע — קנס +30
-    const date = dateKeyToDate.get(dateKey);
-    if (date) {
-        const dow = date.getDay();
-        const isWeekendSlot = dow === 5 || dow === 6; // 5=Friday, 6=Saturday
-        if (isWeekendSlot && weekendShifts > 0) {
-            score += 30;
-        }
+    // SC-10: night immediately before → afternoon (night ends 06:45, afternoon starts 14:45 next day)
+    if (shiftType === 'afternoon') {
+        const prevKey = getAdjacentDateKey(currentDateKey, -1, dateKeyToDate);
+        if (prevKey && empSchedules.get(empId)?.get(prevKey) === 'night') score += 100;
+    }
+
+    // SC-11: afternoon immediately before → morning (< 8 h rest)
+    if (shiftType === 'morning') {
+        const prevKey = getAdjacentDateKey(currentDateKey, -1, dateKeyToDate);
+        if (prevKey && empSchedules.get(empId)?.get(prevKey) === 'afternoon') score += 100;
+    }
+
+    // SC-12: already has 3+ consecutive nights → penalise another night
+    if (shiftType === 'night' && ctx.consecutiveNights >= 3) score += 60;
+
+    // SC-6: this employee's count of currentShift type > team average
+    const teamNightAvg = [...nightCounts.values()].reduce((a, b) => a + b, 0) / n;
+    const teamMorningAvg = [...morningCounts.values()].reduce((a, b) => a + b, 0) / n;
+    const teamAfternoonAvg = [...afternoonCounts.values()].reduce((a, b) => a + b, 0) / n;
+    if (shiftType === 'night' && ctx.nightCount > teamNightAvg) score += 40;
+    if (shiftType === 'morning' && ctx.morningCount > teamMorningAvg) score += 40;
+    if (shiftType === 'afternoon' && ctx.afternoonCount > teamAfternoonAvg) score += 40;
+
+    // SC-5: total shifts above team average
+    const teamTotalAvg = [...assignmentCounts.values()].reduce((a, b) => a + b, 0) / n;
+    if (ctx.totalShifts > teamTotalAvg) score += 40;
+
+    // SC-7: weekend slot AND above average weekend shifts
+    const teamWeekendAvg = [...weekendCounts.values()].reduce((a, b) => a + b, 0) / n;
+    if (isWeekendSlot && ctx.weekendShifts > teamWeekendAvg) score += 40;
+
+    // SC-13/14: non-sequential rapid switch (morning→night or night→morning)
+    if (ctx.lastShiftType !== null) {
+        const lastOrder = SHIFT_ORDER[ctx.lastShiftType];
+        const curOrder = SHIFT_ORDER[shiftType];
+        if ((lastOrder === 0 && curOrder === 2) || (lastOrder === 2 && curOrder === 0)) score += 20;
     }
 
     return score;
 }
 
 /** Sum of linear penalties — lower means fairer night/weekend distribution. */
+/** Sum of per-employee penalties — used to compare runs. Lower = fairer. Consistent with calculateEmployeeScore core terms. */
 function computeTotalPenalty(
     nightCounts: Map<string, number>,
     weekendCounts: Map<string, number>,
+    assignmentCounts: Map<string, number>,
 ): number {
-    const allEmps = new Set([...nightCounts.keys(), ...weekendCounts.keys()]);
+    const allEmps = new Set([
+        ...nightCounts.keys(),
+        ...weekendCounts.keys(),
+        ...assignmentCounts.keys(),
+    ]);
     let total = 0;
     for (const empId of allEmps) {
         const night = nightCounts.get(empId) ?? 0;
         const weekend = weekendCounts.get(empId) ?? 0;
-        // עקבי עם calculateEmployeeScore: קנס לינארי לשיבוץ ריכוזי
-        total += night * 20 + (weekend > 1 ? 30 : 0);
+        const count = assignmentCounts.get(empId) ?? 0;
+        total += count * 10 + night * 20 + (weekend > 1 ? 30 : 0);
     }
     return total;
 }
@@ -518,10 +578,12 @@ function backtrack(
     assignmentCounts: Map<string, number>,
     nightCounts: Map<string, number>,
     weekendCounts: Map<string, number>,
+    morningCounts: Map<string, number>,
+    afternoonCounts: Map<string, number>,
     dateKeyToDate: Map<string, Date>,
     neighbors: Map<string, Set<string>>,
     stats: { backtracks: number },
-    jitter: number,
+    regularEmployeeCount: number,
     strictMode: boolean,
 ): boolean {
     if (assigned.size === cspVars.length) return true;
@@ -529,8 +591,9 @@ function backtrack(
     const v = selectVariable(cspVars, assigned, domains);
     const orderedValues = orderValues(
         v, domains.get(v.id)!, assigned, domains, neighbors,
-        assignmentCounts, nightCounts, weekendCounts, jitter,
-        empSchedules, dateKeyToDate, strictMode,
+        assignmentCounts, nightCounts, weekendCounts,
+        morningCounts, afternoonCounts,
+        empSchedules, dateKeyToDate, regularEmployeeCount, strictMode,
     );
 
     for (const empId of orderedValues) {
@@ -543,6 +606,8 @@ function backtrack(
         const newCount = (assignmentCounts.get(empId) ?? 0) + 1;
         assignmentCounts.set(empId, newCount);
         if (v.type === 'night') nightCounts.set(empId, (nightCounts.get(empId) ?? 0) + 1);
+        if (v.type === 'morning') morningCounts.set(empId, (morningCounts.get(empId) ?? 0) + 1);
+        if (v.type === 'afternoon') afternoonCounts.set(empId, (afternoonCounts.get(empId) ?? 0) + 1);
         const dayOfWeek = v.date.getDay();
         if (dayOfWeek === 5 || dayOfWeek === 6) weekendCounts.set(empId, (weekendCounts.get(empId) ?? 0) + 1);
 
@@ -562,22 +627,9 @@ function backtrack(
             }
         }
 
-        // Soft-constraint forward pruning (strict mode only):
-        // Propagate afternoon→morning exclusions so wipe-out detection catches
-        // dead-end paths before the recursive call, reducing backtracking.
-        //   - afternoon assignment → prune empId from next-day morning vars
-        // NOTE: backward pruning (morning → prev-day afternoon) is OMITTED intentionally.
-        //   isConsistent() check 3b already enforces the reverse direction at assignment
-        //   time; backward pruning here would cause excessive wipe-outs that make Phase A
-        //   fail to find solutions that actually exist.
-        // Soft-constraint forward pruning (strict mode, afternoon only):
-        // When empId is assigned to an afternoon shift on day D, prune empId from all
-        // unassigned morning vars on day D+1 — isConsistent check 3a would reject them
-        // anyway, and early pruning enables faster wipe-out detection.
-        // Backward direction (morning → prev-day afternoon) is intentionally omitted
-        // to avoid false wipe-outs; isConsistent check 3b enforces that direction.
+        // HC-2 forward pruning (afternoon→morning, always enforced)
         const softRemoved = new Map<string, string[]>();
-        if (strictMode && v.type === 'afternoon') {
+        if (v.type === 'afternoon') {
             const nextDayKey = getAdjacentDateKey(v.dateKey, +1, dateKeyToDate);
             if (nextDayKey) {
                 for (const u of cspVars) {
@@ -600,7 +652,11 @@ function backtrack(
         }
 
         if (!wiped) {
-            if (backtrack(cspVars, assigned, assignment, empSchedules, domains, assignmentCounts, nightCounts, weekendCounts, dateKeyToDate, neighbors, stats, jitter, strictMode)) {
+            if (backtrack(
+                cspVars, assigned, assignment, empSchedules, domains,
+                assignmentCounts, nightCounts, weekendCounts, morningCounts, afternoonCounts,
+                dateKeyToDate, neighbors, stats, regularEmployeeCount, strictMode,
+            )) {
                 return true;
             }
         }
@@ -611,6 +667,8 @@ function backtrack(
         empSchedules.get(empId)!.delete(v.dateKey);
         assignmentCounts.set(empId, Math.max(0, (assignmentCounts.get(empId) ?? 1) - 1));
         if (v.type === 'night') nightCounts.set(empId, Math.max(0, (nightCounts.get(empId) ?? 1) - 1));
+        if (v.type === 'morning') morningCounts.set(empId, Math.max(0, (morningCounts.get(empId) ?? 1) - 1));
+        if (v.type === 'afternoon') afternoonCounts.set(empId, Math.max(0, (afternoonCounts.get(empId) ?? 1) - 1));
         if (dayOfWeek === 5 || dayOfWeek === 6) weekendCounts.set(empId, Math.max(0, (weekendCounts.get(empId) ?? 1) - 1));
         restoreDomains(removed, domains);
         restoreDomains(capacityRemoved, domains);
@@ -803,90 +861,6 @@ function swapSearchImprovement(
     }
 }
 
-/**
- * Soft-violation elimination local search.
- *
- * Targets each afternoon→morning "8|8" assignment and tries to find a
- * replacement employee who can cover the same shift WITHOUT creating a
- * new soft violation. Hard constraints (rest rules, weekly cap, double
- * booking) are always respected via isConsistent(..., false).
- *
- * Only called in Phase B (when strict CSP could not produce a complete
- * solution). Phase A results are already violation-free by construction.
- *
- * Runs up to MAX_PASSES sweeps or until no violations remain.
- */
-function softViolationElimination(
-    cspVars: CSPVar[],
-    assignment: Map<string, string>,
-    empSchedules: Map<string, EmpSchedule>,
-    assignmentCounts: Map<string, number>,
-    nightCounts: Map<string, number>,
-    weekendCounts: Map<string, number>,
-    dateKeyToDate: Map<string, Date>,
-    baselineDomains: Map<string, Set<string>>,
-): void {
-    const MAX_PASSES = 3;
-
-    for (let pass = 0; pass < MAX_PASSES; pass++) {
-        let improved = false;
-
-        for (const v of cspVars) {
-            const empA = assignment.get(v.id);
-            if (!empA) continue;
-
-            const schedA = empSchedules.get(empA)!;
-
-            // Check whether empA's assignment on this slot is part of an 8|8 violation
-            const isViolating =
-                hasSoftViolation(empA, v.dateKey, v.type, empSchedules, dateKeyToDate) ||
-                hasReverseSoftViolation(empA, v.dateKey, v.type, empSchedules, dateKeyToDate);
-            if (!isViolating) continue;
-
-            // Try to find a replacement in the baseline domain who avoids the violation
-            for (const empB of baselineDomains.get(v.id) ?? []) {
-                if (empB === empA) continue;
-                if ((assignmentCounts.get(empB) ?? 0) >= MAX_SHIFTS_PER_WEEK) continue;
-
-                // Temporarily remove empA to test consistency for empB
-                schedA.delete(v.dateKey);
-                const canWork = isConsistent(empB, v.dateKey, v.type, empSchedules, dateKeyToDate, nightCounts, weekendCounts, false);
-
-                // Ensure empB itself does not introduce a new soft violation
-                const wouldViolate = canWork && (
-                    hasSoftViolation(empB, v.dateKey, v.type, empSchedules, dateKeyToDate) ||
-                    hasReverseSoftViolation(empB, v.dateKey, v.type, empSchedules, dateKeyToDate)
-                );
-
-                schedA.set(v.dateKey, v.type); // always restore before deciding
-
-                if (!canWork || wouldViolate) continue;
-
-                // Apply reassignment
-                assignment.set(v.id, empB);
-                schedA.delete(v.dateKey);
-                empSchedules.get(empB)!.set(v.dateKey, v.type);
-                assignmentCounts.set(empA, Math.max(0, (assignmentCounts.get(empA) ?? 1) - 1));
-                assignmentCounts.set(empB, (assignmentCounts.get(empB) ?? 0) + 1);
-                const isNight = v.type === 'night';
-                const isWeekend = v.date.getDay() === 5 || v.date.getDay() === 6;
-                if (isNight) {
-                    nightCounts.set(empA, Math.max(0, (nightCounts.get(empA) ?? 1) - 1));
-                    nightCounts.set(empB, (nightCounts.get(empB) ?? 0) + 1);
-                }
-                if (isWeekend) {
-                    weekendCounts.set(empA, Math.max(0, (weekendCounts.get(empA) ?? 1) - 1));
-                    weekendCounts.set(empB, (weekendCounts.get(empB) ?? 0) + 1);
-                }
-                improved = true;
-                break;
-            }
-        }
-
-        if (!improved) break;
-    }
-}
-
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
@@ -901,15 +875,23 @@ function softViolationElimination(
  *            (handles genuinely under-staffed weeks without crashing).
  */
 export function solveCsp(input: CSPInput): CSPResult {
-    const { slots, employees, constraintMap, partialConstraintMap, weekDates } = input;
+    const { slots, constraintMap, partialConstraintMap, weekDates } = input;
+
+    // Sort employees by _id for deterministic iteration order
+    const employees = [...input.employees].sort((a, b) =>
+        a._id.toString().localeCompare(b._id.toString()),
+    );
 
     const managers = employees.filter(e => isManagerEmployee(e));
     const regulars = employees.filter(e => !isManagerEmployee(e));
+    const regularEmployeeCount = regulars.length;
 
     let assignment = new Map<string, string>();
     let assignmentCounts = new Map<string, number>();
     let nightCounts = new Map<string, number>();
     let weekendCounts = new Map<string, number>();
+    let morningCounts = new Map<string, number>();
+    let afternoonCounts = new Map<string, number>();
 
     // empSchedules: empId → (dateKey → shiftType) — used for consistency checks
     let empSchedules = new Map<string, EmpSchedule>();
@@ -922,14 +904,16 @@ export function solveCsp(input: CSPInput): CSPResult {
         const available = managers
             .filter(m => {
                 const mId = m._id.toString();
-                if ((assignmentCounts.get(mId) ?? 0) >= MAX_SHIFTS_PER_WEEK) return false;
+                // HC-1: managers/isFixedMorning are exempt from MAX_SHIFTS_PER_WEEK cap
+                // because they must cover all 7 morning slots per week.
                 if (constraintMap[mId]?.[slot.dateKey]?.['morning']) return false;
                 if (partialConstraintMap[mId]?.[slot.dateKey]?.['morning']?.shouldBlock) return false;
                 return true;
             })
             .sort((a, b) =>
                 (assignmentCounts.get(a._id.toString()) ?? 0) -
-                (assignmentCounts.get(b._id.toString()) ?? 0),
+                (assignmentCounts.get(b._id.toString()) ?? 0) ||
+                a._id.toString().localeCompare(b._id.toString()),
             );
 
         const slotDayOfWeek = slot.date.getDay();
@@ -939,7 +923,7 @@ export function solveCsp(input: CSPInput): CSPResult {
             const varId = `${slot.dateKey}_morning_${seatIdx}`;
             assignment.set(varId, mgrId);
             assignmentCounts.set(mgrId, (assignmentCounts.get(mgrId) ?? 0) + 1);
-            // morning shifts are never night; track weekend for managers too
+            morningCounts.set(mgrId, (morningCounts.get(mgrId) ?? 0) + 1);
             if (slotDayOfWeek === 5 || slotDayOfWeek === 6) weekendCounts.set(mgrId, (weekendCounts.get(mgrId) ?? 0) + 1);
             empSchedules.get(mgrId)!.set(slot.dateKey, 'morning');
             seatIdx++;
@@ -988,6 +972,8 @@ export function solveCsp(input: CSPInput): CSPResult {
     const baselineAssignmentCounts = new Map(assignmentCounts);
     const baselineNightCounts = new Map(nightCounts);
     const baselineWeekendCounts = new Map(weekendCounts);
+    const baselineMorningCounts = new Map(morningCounts);
+    const baselineAfternoonCounts = new Map(afternoonCounts);
     const baselineEmpSchedules = deepCopyEmpSchedules(empSchedules);
     const baselineDomains = deepCopyDomains(domains);
 
@@ -996,42 +982,49 @@ export function solveCsp(input: CSPInput): CSPResult {
     const dateKeyToDate = new Map<string, Date>(weekDates.map(d => [toDateKey(d), d]));
 
     // Pre-computed neighbor adjacency: varId → neighbor varIds.
-    // Encodes same-day (double-booking) and bidirectional rest-rule adjacency.
+    // Encodes same-day (double-booking) and bidirectional HC-2 rest-rule adjacency:
+    //   - night var    → next-day morning vars   (night→morning HC-2)
+    //   - morning var  → prev-day night vars      (reverse of above)
+    //   - afternoon var → next-day morning vars   (afternoon→morning HC-2, now always hard)
+    //   - morning var  → prev-day afternoon vars  (reverse of above)
     // Built once; replaces O(N) inner loops in forwardCheck and orderValues.
     const neighbors = new Map<string, Set<string>>();
     for (const v of cspVars) {
         const nbrs = new Set<string>();
         const vDate = dateKeyToDate.get(v.dateKey);
-        const nextDayKey = (vDate && v.type === 'night')
+        // next-day key for night vars (night→morning pruning)
+        const nextDayKey_night = (vDate && v.type === 'night')
             ? toDateKey(new Date(vDate.getTime() + DAY_MS))
             : null;
+        // next-day key for afternoon vars (afternoon→morning HC-2 pruning)
+        const nextDayKey_afternoon = (vDate && v.type === 'afternoon')
+            ? toDateKey(new Date(vDate.getTime() + DAY_MS))
+            : null;
+        // prev-day key for morning vars (covers both night←morning and afternoon←morning)
         const prevDayKey = (vDate && v.type === 'morning')
             ? toDateKey(new Date(vDate.getTime() - DAY_MS))
             : null;
         for (const u of cspVars) {
             if (u.id === v.id) continue;
             if (u.dateKey === v.dateKey) { nbrs.add(u.id); continue; }
-            if (nextDayKey && u.type === 'morning' && u.dateKey === nextDayKey) { nbrs.add(u.id); continue; }
-            if (prevDayKey && u.type === 'night' && u.dateKey === prevDayKey) { nbrs.add(u.id); continue; }
+            if (nextDayKey_night && u.type === 'morning' && u.dateKey === nextDayKey_night) { nbrs.add(u.id); continue; }
+            if (nextDayKey_afternoon && u.type === 'morning' && u.dateKey === nextDayKey_afternoon) { nbrs.add(u.id); continue; }
+            if (prevDayKey && u.dateKey === prevDayKey && (u.type === 'night' || u.type === 'afternoon')) { nbrs.add(u.id); continue; }
         }
         neighbors.set(v.id, nbrs);
     }
 
     // ── Phase 4: Two-phase backtracking search ───────────────────────────────
     //
-    // PHASE A (strict): Run CSP with afternoon→morning treated as a hard
-    // constraint. If any run produces a COMPLETE solution, we use the best
-    // one (lowest fairness penalty) — guaranteed zero soft violations.
+    // PHASE A (strict): Run CSP with all HC-2 rules enforced as hard constraints.
+    // If any run produces a COMPLETE solution, use the best one (lowest fairness
+    // penalty). Both phases enforce HC-2 identically — the difference is that Phase A
+    // only accepts COMPLETE solutions while Phase B accepts any (partial) result.
     //
-    // PHASE B (relaxed): Only runs if Phase A found no complete solution.
-    // The afternoon→morning constraint is now a catastrophic penalty in
-    // orderValues() (SOFT_VIOLATION_WEIGHT=1,000,000), so violations are
-    // chosen only when every non-violating candidate is impossible.
-    // Results are ranked by (softViolations ASC, penalty ASC).
-    // A dedicated softViolationElimination() local search pass then tries
-    // to eliminate remaining violations through candidate swaps.
-    const NUM_RUNS = 16;
-    const JITTER_VALUES = [0, 0.3, 0.5, 0.8, 1.0, 1.5, 2.0, 3.0, 0.2, 0.4, 0.7, 1.2, 1.8, 2.5, 4.0, 5.0]; // run 0 deterministic
+    // PHASE B (fallback): Only runs if Phase A found no complete solution.
+    // Accepts partial schedules (some slots unfilled, triggering HC-3 alerts
+    // for the manager). Picks the run with the lowest fairness penalty.
+    const NUM_RUNS = 1; // All runs are deterministic — a single run suffices
     let bestPenalty = Infinity;
     let bestSoftViolations = Infinity;
     let totalBacktracks = 0;
@@ -1044,6 +1037,8 @@ export function solveCsp(input: CSPInput): CSPResult {
             const runAssignmentCounts = new Map(baselineAssignmentCounts);
             const runNightCounts = new Map(baselineNightCounts);
             const runWeekendCounts = new Map(baselineWeekendCounts);
+            const runMorningCounts = new Map(baselineMorningCounts);
+            const runAfternoonCounts = new Map(baselineAfternoonCounts);
             const runEmpSchedules = deepCopyEmpSchedules(baselineEmpSchedules);
             const runDomains = deepCopyDomains(baselineDomains);
             const runAssigned = new Set<string>();
@@ -1052,8 +1047,9 @@ export function solveCsp(input: CSPInput): CSPResult {
             const solved = backtrack(
                 cspVars, runAssigned, runAssignment, runEmpSchedules, runDomains,
                 runAssignmentCounts, runNightCounts, runWeekendCounts,
-                dateKeyToDate, neighbors, runStats, JITTER_VALUES[run],
-                true, // strictMode: enforce afternoon→morning as hard constraint
+                runMorningCounts, runAfternoonCounts,
+                dateKeyToDate, neighbors, runStats, regularEmployeeCount,
+                true, // strictMode
             );
 
             totalBacktracks += runStats.backtracks;
@@ -1062,36 +1058,38 @@ export function solveCsp(input: CSPInput): CSPResult {
             if (!solved) continue;
             phaseAHasCompleteSolution = true;
 
-            const penalty = computeTotalPenalty(runNightCounts, runWeekendCounts);
+            const penalty = computeTotalPenalty(runNightCounts, runWeekendCounts, runAssignmentCounts);
             if (penalty < bestPenalty) {
                 bestPenalty = penalty;
                 assignment = runAssignment;
                 assignmentCounts = runAssignmentCounts;
                 nightCounts = runNightCounts;
                 weekendCounts = runWeekendCounts;
+                morningCounts = runMorningCounts;
+                afternoonCounts = runAfternoonCounts;
                 empSchedules = runEmpSchedules;
             }
         }
 
         if (phaseAHasCompleteSolution) {
-            // Phase A succeeded — apply fairness-only local search (no soft violations to fix)
             localSearchImprovement(
                 cspVars, assignment, empSchedules, assignmentCounts,
                 nightCounts, weekendCounts, dateKeyToDate, baselineDomains,
-                true, // strictMode: preserve absence of 8|8 violations from Phase A
+                true,
             );
             swapSearchImprovement(
                 cspVars, assignment, empSchedules,
                 nightCounts, weekendCounts, dateKeyToDate, baselineDomains,
-                true, // strictMode: preserve absence of 8|8 violations from Phase A
+                true,
             );
         } else {
-            // ── Phase B: relaxed runs (soft violations allowed but catastrophically penalised) ─
-            // Reset to baseline before starting Phase B
+            // ── Phase B: relaxed runs ──────────────────────────────────────────────
             assignment = new Map(baselineAssignment);
             assignmentCounts = new Map(baselineAssignmentCounts);
             nightCounts = new Map(baselineNightCounts);
             weekendCounts = new Map(baselineWeekendCounts);
+            morningCounts = new Map(baselineMorningCounts);
+            afternoonCounts = new Map(baselineAfternoonCounts);
             empSchedules = deepCopyEmpSchedules(baselineEmpSchedules);
             bestPenalty = Infinity;
 
@@ -1100,6 +1098,8 @@ export function solveCsp(input: CSPInput): CSPResult {
                 const runAssignmentCounts = new Map(baselineAssignmentCounts);
                 const runNightCounts = new Map(baselineNightCounts);
                 const runWeekendCounts = new Map(baselineWeekendCounts);
+                const runMorningCounts = new Map(baselineMorningCounts);
+                const runAfternoonCounts = new Map(baselineAfternoonCounts);
                 const runEmpSchedules = deepCopyEmpSchedules(baselineEmpSchedules);
                 const runDomains = deepCopyDomains(baselineDomains);
                 const runAssigned = new Set<string>();
@@ -1108,46 +1108,38 @@ export function solveCsp(input: CSPInput): CSPResult {
                 backtrack(
                     cspVars, runAssigned, runAssignment, runEmpSchedules, runDomains,
                     runAssignmentCounts, runNightCounts, runWeekendCounts,
-                    dateKeyToDate, neighbors, runStats, JITTER_VALUES[run],
-                    false, // relaxed: soft violations allowed with catastrophic penalty in orderValues
+                    runMorningCounts, runAfternoonCounts,
+                    dateKeyToDate, neighbors, runStats, regularEmployeeCount,
+                    false,
                 );
 
                 totalBacktracks += runStats.backtracks;
 
-                // Rank: fewest soft violations first, then lowest fairness penalty
-                const softViolations = countSoftViolations(runEmpSchedules, dateKeyToDate);
-                const penalty = computeTotalPenalty(runNightCounts, runWeekendCounts);
-                const better =
-                    softViolations < bestSoftViolations ||
-                    (softViolations === bestSoftViolations && penalty < bestPenalty);
+                const penalty = computeTotalPenalty(runNightCounts, runWeekendCounts, runAssignmentCounts);
+                const better = penalty < bestPenalty;
 
                 if (better) {
-                    bestSoftViolations = softViolations;
                     bestPenalty = penalty;
                     assignment = runAssignment;
                     assignmentCounts = runAssignmentCounts;
                     nightCounts = runNightCounts;
                     weekendCounts = runWeekendCounts;
+                    morningCounts = runMorningCounts;
+                    afternoonCounts = runAfternoonCounts;
                     empSchedules = runEmpSchedules;
                 }
             }
 
-            // Eliminate residual soft violations through candidate swaps (before fairness pass)
-            softViolationElimination(
-                cspVars, assignment, empSchedules, assignmentCounts,
-                nightCounts, weekendCounts, dateKeyToDate, baselineDomains,
-            );
-
-            // Then optimise fairness as usual
+            // Optimise fairness on the best Phase B result
             localSearchImprovement(
                 cspVars, assignment, empSchedules, assignmentCounts,
                 nightCounts, weekendCounts, dateKeyToDate, baselineDomains,
-                false, // relaxed: Phase B already attempted elimination; don't re-block
+                true,
             );
             swapSearchImprovement(
                 cspVars, assignment, empSchedules,
                 nightCounts, weekendCounts, dateKeyToDate, baselineDomains,
-                false, // relaxed: Phase B already attempted elimination; don't re-block
+                true,
             );
         }
     }
@@ -1166,17 +1158,18 @@ export function solveCsp(input: CSPInput): CSPResult {
             })
             .sort((a, b) =>
                 (assignmentCounts.get(a._id.toString()) ?? 0) -
-                (assignmentCounts.get(b._id.toString()) ?? 0),
+                (assignmentCounts.get(b._id.toString()) ?? 0) ||
+                a._id.toString().localeCompare(b._id.toString()),
             );
 
-        if (candidates.length === 0) {
-            continue;
-        }
+        if (candidates.length === 0) continue;
 
         const empId = candidates[0]._id.toString();
         assignment.set(v.id, empId);
         assignmentCounts.set(empId, (assignmentCounts.get(empId) ?? 0) + 1);
         if (v.type === 'night') nightCounts.set(empId, (nightCounts.get(empId) ?? 0) + 1);
+        if (v.type === 'morning') morningCounts.set(empId, (morningCounts.get(empId) ?? 0) + 1);
+        if (v.type === 'afternoon') afternoonCounts.set(empId, (afternoonCounts.get(empId) ?? 0) + 1);
         const rescueDayOfWeek = v.date.getDay();
         if (rescueDayOfWeek === 5 || rescueDayOfWeek === 6) weekendCounts.set(empId, (weekendCounts.get(empId) ?? 0) + 1);
         empSchedules.get(empId)!.set(v.dateKey, v.type);

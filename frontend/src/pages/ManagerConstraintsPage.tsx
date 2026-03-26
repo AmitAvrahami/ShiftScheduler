@@ -1,14 +1,30 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import api, { adminAPI } from '../lib/api';
-import { getCurrentWeekId, getWeekDates, getWeekId, getWeekNumber, formatWeekDateRange, getPreviousWeekId } from '../utils/weekUtils';
+import api, { adminAPI, notificationAPI, constraintAPI } from '../lib/api';
+import { 
+    getCurrentWeekId, 
+    getWeekDates, 
+    getWeekId, 
+    getWeekNumber, 
+    formatWeekDateRange, 
+    getPreviousWeekId 
+} from '../utils/weekUtils';
 
 const toDateKey = (d: Date): string =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-const DAYS_HEBREW = [
-    'ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'
-];
+const DAYS_HEBREW_SHORT = ['א\'', 'ב\'', 'ג\'', 'ד\'', 'ה\'', 'ו\'', 'ש\''];
+const DAYS_HEBREW = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
+const SHIFTS_HEBREW = ['בוקר', 'אתה"צ', 'לילה'];
+const SHIFT_KEYS = ['morning', 'afternoon', 'night'];
+
+function daysSinceSunday(weekId: string): number {
+    const weekStart = getWeekDates(weekId)[0]; // Sunday of that week
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diff = today.getTime() - weekStart.getTime();
+    return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
+}
 
 interface ConstraintEntry {
     date: string;
@@ -52,6 +68,16 @@ export default function ManagerConstraintsPage() {
     const [isCopying, setIsCopying] = useState(false);
     const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
+    const [activeTab, setActiveTab] = useState<'submitted' | 'pending' | 'all'>('pending');
+    const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+    const [reminderToasts, setReminderToasts] = useState<Record<string, boolean>>({});
+
+    const [editTarget, setEditTarget] = useState<DisplayRow | null>(null);
+    const [editGrid, setEditGrid] = useState<
+        Array<{ dateKey: string; date: string; shift: string; canWork: boolean }>
+    >([]);
+    const [isSavingOverride, setIsSavingOverride] = useState(false);
+
     useEffect(() => {
         try {
             setDates(getWeekDates(weekId));
@@ -60,11 +86,7 @@ export default function ManagerConstraintsPage() {
         }
     }, [weekId]);
 
-    useEffect(() => {
-        fetchWeekConstraints();
-    }, [weekId]);
-
-    const fetchWeekConstraints = async () => {
+    const fetchWeekConstraints = useCallback(async () => {
         setIsLoading(true);
         setMessage(null);
         try {
@@ -105,7 +127,11 @@ export default function ManagerConstraintsPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [weekId]);
+
+    useEffect(() => {
+        fetchWeekConstraints();
+    }, [weekId, fetchWeekConstraints]);
 
     const handlePrevWeek = () => {
         if (dates.length > 0) {
@@ -185,189 +211,439 @@ export default function ManagerConstraintsPage() {
         }
     };
 
-    const SHIFT_LABEL: Record<string, string> = { morning: 'בוקר', afternoon: 'צהריים', night: 'לילה' };
+    const handleSendReminder = async (employeeId: string) => {
+        try {
+            await notificationAPI.create({
+                employeeId,
+                type: 'reminder',
+                message: `תזכורת: יש להגיש אילוצים לשבוע ${weekId}`
+            });
 
-    const renderCellBadges = (constraints: ConstraintEntry[], dateStr: string) => {
-        const fullBlocks = constraints.filter(
-            c => toDateKey(new Date(c.date)) === dateStr && !c.canWork
-        );
-        const partialConstraints = constraints.filter(
-            c => toDateKey(new Date(c.date)) === dateStr && c.canWork && (c.availableFrom || c.availableTo)
-        );
+            setReminderToasts(prev => ({ ...prev, [employeeId]: true }));
+            setTimeout(() => {
+                setReminderToasts(prev => ({ ...prev, [employeeId]: false }));
+            }, 3000);
 
-        if (fullBlocks.length === 0 && partialConstraints.length === 0) {
-            return <span className="text-green-500 text-xl font-bold">✓</span>;
+        } catch (error) {
+            console.error('Reminder error:', error);
+            setMessage({ text: 'שגיאה בשליחת תזכורת', type: 'error' });
         }
-
-        return (
-            <div className="flex flex-col gap-1 items-center">
-                {fullBlocks.map((c, i) => {
-                    let badgeColor = 'bg-slate-200 text-slate-800';
-                    if (c.shift === 'morning') badgeColor = 'bg-blue-100 text-blue-800 border-blue-200';
-                    else if (c.shift === 'afternoon') badgeColor = 'bg-orange-100 text-orange-800 border-orange-200';
-                    else if (c.shift === 'night') badgeColor = 'bg-purple-100 text-purple-800 border-purple-200';
-                    return (
-                        <span key={`full-${i}`} className={`text-xs px-2 py-0.5 rounded-full border ${badgeColor}`}>
-                            {SHIFT_LABEL[c.shift] ?? c.shift}
-                        </span>
-                    );
-                })}
-                {partialConstraints.map((c, i) => {
-                    const timeNote = c.availableFrom
-                        ? `מ-${c.availableFrom}`
-                        : `עד ${c.availableTo}`;
-                    return (
-                        <span key={`partial-${i}`} className="text-xs px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200">
-                            {SHIFT_LABEL[c.shift] ?? c.shift} | {timeNote}
-                        </span>
-                    );
-                })}
-            </div>
-        );
     };
+
+    const openEditModal = (row: DisplayRow) => {
+        const weekDates = getWeekDates(weekId);
+        const grid = weekDates.flatMap(date => {
+            const dateKey = toDateKey(date);
+            return SHIFT_KEYS.map(shift => {
+                const existing = row.constraints.find(
+                    c => toDateKey(new Date(c.date)) === dateKey && c.shift === shift
+                );
+                return {
+                    dateKey,
+                    date: dateKey + 'T00:00:00.000Z',
+                    shift,
+                    canWork: existing ? existing.canWork : true,
+                };
+            });
+        });
+        setEditGrid(grid);
+        setEditTarget(row);
+    };
+
+    const toggleCell = (dateKey: string, shift: string) => {
+        setEditGrid(prev => prev.map(cell =>
+            cell.dateKey === dateKey && cell.shift === shift
+                ? { ...cell, canWork: !cell.canWork }
+                : cell
+        ));
+    };
+
+    const handleSaveOverride = async () => {
+        if (!editTarget) return;
+        setIsSavingOverride(true);
+        try {
+            const payload = editGrid
+                .filter(cell => cell.canWork === false)
+                .map(cell => ({
+                    date: cell.date,
+                    shift: cell.shift as 'morning' | 'afternoon' | 'night',
+                    canWork: false as const,
+                    availableFrom: null,
+                    availableTo: null,
+                }));
+            await constraintAPI.managerOverride(editTarget.key, weekId, payload);
+            setMessage({ text: 'האילוצים עודכנו בהצלחה ✓', type: 'success' });
+            setEditTarget(null);
+            await fetchWeekConstraints();
+        } catch (error) {
+            console.error('Override error:', error);
+            setMessage({ text: 'שגיאה בעדכון האילוצים', type: 'error' });
+        } finally {
+            setIsSavingOverride(false);
+        }
+    };
+
+    const submittedRows = displayRows.filter(r => r.constraints.length > 0);
+    const pendingRows = displayRows.filter(r => r.constraints.length === 0);
+
+    let visibleRows: DisplayRow[] = [];
+    if (activeTab === 'submitted') visibleRows = submittedRows;
+    else if (activeTab === 'pending') visibleRows = pendingRows;
+    else visibleRows = displayRows;
 
     const hasAnyConstraints = displayRows.some(r => r.constraints.length > 0);
     const isCurrentWeekLocked = hasAnyConstraints && displayRows.some(r => r.isLocked);
 
+    const selectedRow = displayRows.find(r => r.key === selectedEmployeeId);
+
     return (
         <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6" dir="rtl">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <Link to="/dashboard" className="text-blue-600 hover:text-blue-800 font-medium">
-                    &rarr; חזרה ללוח הבקרה
-                </Link>
-                <h1 className="text-2xl font-bold text-slate-800">
-                    אילוצי עובדים — שבוע {getWeekNumber(weekId)}
-                    <span className="text-base font-normal text-slate-500 mr-2">{formatWeekDateRange(weekId)}</span>
-                </h1>
-
-                <div className="flex items-center space-x-2 space-x-reverse bg-white rounded-lg shadow-sm border border-slate-200 p-1">
-                    <button
-                        onClick={handleNextWeek}
-                        className="p-2 hover:bg-slate-100 rounded text-slate-600 transition-colors"
-                        title="שבוע הבא"
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                    </button>
-                    <span className="inline-flex flex-col items-center px-4 min-w-[150px]">
-                        <span className="font-semibold text-slate-700 text-sm">שבוע {getWeekNumber(weekId)}</span>
-                        <span className="text-xs text-slate-400">{formatWeekDateRange(weekId)}</span>
-                    </span>
-                    <button
-                        onClick={handlePrevWeek}
-                        className="p-2 hover:bg-slate-100 rounded text-slate-600 transition-colors"
-                        title="שבוע קודם"
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-                    </button>
+            {/* Header section */}
+            <div className="flex justify-between items-center mb-6">
+                <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-3xl font-bold text-slate-800 tracking-tight">הגבלות זמינות</h1>
+                        <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full border ${isCurrentWeekLocked ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                            {isCurrentWeekLocked ? 'נעול' : 'טיוטה'}
+                        </span>
+                    </div>
+                    <div className="text-sm text-slate-500 flex items-center gap-2">
+                        שבוע {getWeekNumber(weekId)}, תאריכים: {formatWeekDateRange(weekId)}
+                    </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                    {isCurrentWeekLocked ? (
-                        <>
-                            {/* Locked status indicator */}
-                            <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-500 border border-slate-200 rounded-lg text-sm font-medium">
-                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
-                                האילוצים ננעלו
-                            </div>
-                            {/* Unlock button */}
-                            <button
-                                onClick={handleUnlock}
-                                disabled={isUnlocking}
-                                className="px-4 py-2 font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors flex items-center gap-2 bg-amber-500 text-white hover:bg-amber-600 focus:ring-amber-400 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 016 0h2a5 5 0 00-5-5z" /></svg>
-                                {isUnlocking ? 'מבטל נעילה...' : 'בטל נעילה'}
-                            </button>
-                        </>
-                    ) : (
+                <div className="flex items-center gap-3">
+                    {/* Copy Previous Week + Week Navigation */}
+                    <div className="flex items-center border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
                         <button
-                            onClick={handleLock}
-                            disabled={isLocking || !hasAnyConstraints}
-                            className="px-4 py-2 font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors flex items-center gap-2 bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            onClick={handlePrevWeek}
+                            className="p-2 hover:bg-slate-50 text-slate-500 transition-colors border-l border-slate-200"
+                            title="שבוע קודם"
                         >
-                            {isLocking ? 'נועל...' : 'נעל אילוצים'}
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                         </button>
-                    )}
+                        <div className="px-4 py-1.5 text-sm font-medium text-slate-700">
+                            שבוע {getWeekNumber(weekId)}
+                        </div>
+                        <button
+                            onClick={handleNextWeek}
+                            className="p-2 hover:bg-slate-50 text-slate-500 transition-colors border-r border-slate-200"
+                            title="שבוע הבא"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                        </button>
+                    </div>
+
                     <button
                         onClick={handleCopyFromPreviousWeek}
                         disabled={isCopying || isLoading}
-                        className="px-4 py-2 font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="העתק אילוצים מהשבוע הקודם"
+                        className="px-4 py-2 font-medium rounded-lg border border-slate-200 shadow-sm transition-colors flex items-center gap-2 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        title="העתק משבוע קודם"
                     >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                        {isCopying ? 'מעתיק...' : 'העתק מהשבוע הקודם'}
+                        <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                        העתק קודם
                     </button>
+
+                    <button className="px-4 py-2 font-medium rounded-lg border border-slate-200 shadow-sm transition-colors flex items-center gap-2 bg-white text-slate-700 hover:bg-slate-50">
+                        <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        יצוא לדוח
+                    </button>
+                    
+                    {isCurrentWeekLocked ? (
+                        <>
+                            <button disabled className="px-4 py-2 font-medium rounded-lg shadow-sm flex items-center gap-2 bg-slate-100 text-slate-500 border border-slate-200 cursor-not-allowed">
+                                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
+                                נעול
+                            </button>
+                            <button onClick={handleUnlock} disabled={isUnlocking} className="px-4 py-2 font-medium rounded-lg border border-slate-300 shadow-sm transition-colors flex items-center gap-2 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+                                בטל נעילה
+                            </button>
+                        </>
+                    ) : (
+                        <button onClick={handleLock} disabled={isLocking || !hasAnyConstraints} className="px-4 py-2 font-medium rounded-lg shadow-sm transition-colors flex items-center gap-2 bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50">
+                            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
+                            {isLocking ? 'נועל...' : 'נעל הגבלות'}
+                        </button>
+                    )}
                 </div>
             </div>
 
             {message && (
-                <div className={`p-4 rounded-lg border ${message.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                <div className={`p-4 rounded-lg border flex items-center gap-2 ${message.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
                     {message.text}
                 </div>
             )}
 
-            <div className="bg-white shadow rounded-lg overflow-hidden border border-slate-200">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-right">
-                        <thead className="text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-200">
-                            <tr>
-                                <th scope="col" className="px-6 py-4 font-semibold w-48 sticky right-0 bg-slate-50 z-10 border-l border-slate-200">
-                                    שם העובד
-                                </th>
-                                {dates.map((date, index) => (
-                                    <th key={index} scope="col" className="px-4 py-4 text-center border-l border-slate-200 last:border-0 min-w-[100px]">
-                                        <div className="font-semibold text-slate-800">{DAYS_HEBREW[index]}</div>
-                                        <div className="text-slate-500 text-xs mt-1">{`${date.getDate()}/${date.getMonth() + 1}`}</div>
-                                    </th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200">
-                            {isLoading ? (
-                                <tr>
-                                    <td colSpan={8} className="px-6 py-10 text-center text-slate-500">טוען נתונים...</td>
-                                </tr>
-                            ) : displayRows.length === 0 ? (
-                                <tr>
-                                    <td colSpan={8} className="px-6 py-10 text-center text-slate-500">
-                                        לא נמצאו עובדים פעילים
-                                    </td>
-                                </tr>
-                            ) : (
-                                displayRows.map((row) => (
-                                    <tr key={row.key} className="hover:bg-slate-50 transition-colors">
-                                        <td className="px-6 py-4 font-medium text-slate-900 sticky right-0 bg-white group-hover:bg-slate-50 z-10 border-l border-slate-200 shadow-[inset_-1px_0_0_0_rgb(226,232,240)]">
-                                            <div className="flex flex-col">
-                                                <span>{row.user.name}</span>
-                                                {row.user.role === 'manager' && (
-                                                    <span className="text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200 w-fit mt-1">
-                                                        מנהל
-                                                    </span>
-                                                )}
-                                                {row.user.isFixedMorning && (
-                                                    <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 w-fit mt-1">
-                                                        קבוע בוקר
+            {/* Tabs */}
+            <div className="flex border-b border-slate-200 mb-6">
+                <button
+                    onClick={() => setActiveTab('pending')}
+                    className={`pb-4 px-6 font-medium text-sm transition-colors flex items-center gap-2 border-b-2 relative -mb-[1px] ${activeTab === 'pending' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                >
+                    בהמתנה ({pendingRows.length})
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </button>
+                <button
+                    onClick={() => setActiveTab('submitted')}
+                    className={`pb-4 px-6 font-medium text-sm transition-colors flex items-center gap-2 border-b-2 relative -mb-[1px] ${activeTab === 'submitted' ? 'border-green-500 text-green-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                >
+                    עובדים שהגישו ({submittedRows.length})
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                </button>
+                <button
+                    onClick={() => setActiveTab('all')}
+                    className={`pb-4 px-6 font-medium text-sm transition-colors flex items-center gap-2 border-b-2 relative -mb-[1px] ${activeTab === 'all' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                >
+                    כל הגבלות
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                </button>
+            </div>
+
+            <div className="flex flex-col lg:flex-row gap-6">
+                {/* Right Panel (Employee Cards) - in RTL this displays on the right naturally */}
+                <div className="flex-1 flex flex-col gap-4">
+                    {isLoading ? (
+                        <div className="p-12 text-center text-slate-500 bg-white rounded-xl border border-slate-200">טוען נתונים...</div>
+                    ) : visibleRows.length === 0 ? (
+                        <div className="p-12 text-center text-slate-500 bg-white rounded-xl border border-slate-200">
+                            לא נמצאו רשומות מתאימות
+                        </div>
+                    ) : (
+                        visibleRows.map((row) => {
+                            const isSubmitted = row.constraints.length > 0;
+                            const lateDays = daysSinceSunday(weekId);
+
+                            return (
+                                <div 
+                                    key={row.key} 
+                                    className={`flex items-center justify-between p-5 bg-white rounded-xl shadow-sm transition-all hover:shadow-md border ${isSubmitted ? 'border-slate-200 border-r-4 border-r-green-400' : 'border-slate-200'} ${selectedEmployeeId === row.key ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
+                                >
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+                                            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg>
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-slate-900 text-lg">{row.user.name}</h3>
+                                            <div className="text-sm mt-0.5">
+                                                {isSubmitted ? (
+                                                    <span className="text-slate-500">הוגש בהצלחה</span>
+                                                ) : (
+                                                    <span className="text-amber-600 font-medium flex items-center gap-1.5">
+                                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                                                        באיחור של {lateDays} ימים
                                                     </span>
                                                 )}
                                             </div>
-                                        </td>
-                                        {dates.map((date, index) => {
-                                            const dateStr = toDateKey(date);
-                                            return (
-                                                <td key={index} className="px-4 py-3 text-center align-middle border-l border-slate-200 last:border-0 bg-white">
-                                                    <div className="min-h-[60px] flex items-center justify-center">
-                                                        {renderCellBadges(row.constraints, dateStr)}
-                                                    </div>
-                                                </td>
-                                            );
-                                        })}
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        {isSubmitted ? (
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => setSelectedEmployeeId(row.key)}
+                                                    className={`px-5 py-2 text-sm font-semibold rounded-lg border transition-colors ${selectedEmployeeId === row.key ? 'bg-slate-100 border-slate-300 text-slate-800' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+                                                >
+                                                    צפה בפרטים
+                                                </button>
+                                                <button
+                                                    onClick={() => openEditModal(row)}
+                                                    className="px-5 py-2 text-sm font-semibold rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors"
+                                                >
+                                                    ערוך אילוצים
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-3">
+                                                {reminderToasts[row.key] && (
+                                                    <span className="text-blue-600 text-sm font-medium animate-pulse">תזכורת נשלחה ✓</span>
+                                                )}
+                                                <button
+                                                    onClick={() => handleSendReminder(row.key)}
+                                                    className="px-5 py-2 text-sm font-semibold rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                                                >
+                                                    שלח תזכורת
+                                                </button>
+                                                <button
+                                                    onClick={() => openEditModal(row)}
+                                                    className="px-5 py-2 text-sm font-semibold rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors"
+                                                >
+                                                    ערוך אילוצים
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+
+                {/* Left Panel (Mini Grid Preview) */}
+                <div className="w-full lg:w-[340px] shrink-0">
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 sticky top-6">
+                        {selectedRow ? (
+                            <>
+                                <div className="flex items-center gap-2 mb-6 text-blue-800">
+                                    <svg className="w-5 h-5 text-slate-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
+                                    <h2 className="font-bold text-lg">תצוגת זמינות: {selectedRow.user.name}</h2>
+                                </div>
+
+                                <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3">
+                                    {/* Header Row (Days) */}
+                                    <div className="col-start-2 grid grid-cols-7 gap-1.5 text-center mb-1">
+                                        {DAYS_HEBREW.map((day, i) => (
+                                            <div key={i} className="text-xs font-semibold text-slate-500">{day}'</div>
+                                        ))}
+                                    </div>
+
+                                    {/* Rows (Shifts) */}
+                                    {SHIFT_KEYS.map((shift, shiftIndex) => (
+                                        <div key={shift} className="contents">
+                                            <div className="text-xs font-medium text-slate-500 self-center whitespace-nowrap pt-1">
+                                                {SHIFTS_HEBREW[shiftIndex]}
+                                            </div>
+                                            <div className="grid grid-cols-7 gap-1.5">
+                                                {dates.map((date, dateIndex) => {
+                                                    const dateStr = toDateKey(date);
+                                                    const entry = selectedRow.constraints.find(c =>
+                                                        toDateKey(new Date(c.date)) === dateStr && c.shift === shift
+                                                    );
+
+                                                    let bgColor = 'bg-slate-50 border-slate-100'; // Default, no constraint -> maybe free
+                                                    if (!entry) {
+                                                        bgColor = 'bg-stone-50 border-stone-200'; // Should be available/green, but wait: the prompt said if no entry -> available. Let's make it green-100 or stone-50.
+                                                        // Prompt says: "no constraint = free (canWork true) -> Green bg-green-100"
+                                                        bgColor = 'bg-green-100 border-green-200';
+                                                    } else if (entry.canWork === false) {
+                                                        bgColor = 'bg-orange-100 border-orange-200';
+                                                    } else if (entry.canWork === true && (entry.availableFrom || entry.availableTo)) {
+                                                        bgColor = 'bg-purple-100 border-purple-200';
+                                                    } else if (entry.canWork === true) {
+                                                        bgColor = 'bg-green-100 border-green-200';
+                                                    }
+
+                                                    return (
+                                                        <div
+                                                            key={dateIndex}
+                                                            className={`h-8 rounded ${bgColor} border`}
+                                                            title={entry && entry.canWork && (entry.availableFrom || entry.availableTo) ? `מ-${entry.availableFrom || '*'} עד ${entry.availableTo || '*'}` : undefined}
+                                                        ></div>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="mt-8 pt-6 border-t border-slate-100 space-y-3 text-xs font-medium text-slate-600">
+                                    <div className="flex items-center justify-end gap-3">
+                                        <span>זמין למשמרת</span>
+                                        <div className="w-5 h-5 rounded bg-green-100 border border-green-200"></div>
+                                    </div>
+                                    <div className="flex items-center justify-end gap-3">
+                                        <span>זמין חלקית</span>
+                                        <div className="w-5 h-5 rounded bg-purple-100 border border-purple-200"></div>
+                                    </div>
+                                    <div className="flex items-center justify-end gap-3">
+                                        <span>לא זמין / חופש</span>
+                                        <div className="w-5 h-5 rounded bg-orange-100 border border-orange-200"></div>
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="h-48 flex flex-col justify-center items-center text-slate-400">
+                                <span>בחר עובד כדי לצפות בזמינות</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
+
+        {/* Edit Constraints Modal */}
+        {editTarget && (
+            <div
+                className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+                onClick={() => setEditTarget(null)}
+            >
+                <div
+                    className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl"
+                    onClick={e => e.stopPropagation()}
+                    dir="rtl"
+                >
+                    {/* Modal Header */}
+                    <div className="px-6 pt-6 pb-4 border-b border-slate-100">
+                        <h2 className="text-xl font-bold text-slate-800">
+                            עריכת אילוצים — {editTarget.user.name}
+                        </h2>
+                        <p className="text-sm text-slate-500 mt-1">
+                            שבוע {getWeekNumber(weekId)} | {formatWeekDateRange(weekId)}
+                        </p>
+                    </div>
+
+                    {/* Modal Grid */}
+                    <div className="px-6 py-5">
+                        <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2">
+                            {/* Day headers */}
+                            <div></div>
+                            <div className="grid grid-cols-7 gap-1.5 text-center mb-1">
+                                {DAYS_HEBREW.map((day, i) => (
+                                    <div key={i} className="text-xs font-semibold text-slate-500">{day}'</div>
+                                ))}
+                            </div>
+
+                            {/* Shift rows */}
+                            {SHIFT_KEYS.map((shift, shiftIndex) => (
+                                <div key={shift} className="contents">
+                                    <div className="text-xs font-medium text-slate-500 self-center whitespace-nowrap">
+                                        {SHIFTS_HEBREW[shiftIndex]}
+                                    </div>
+                                    <div className="grid grid-cols-7 gap-1.5">
+                                        {dates.map((date) => {
+                                            const dateKey = toDateKey(date);
+                                            const cell = editGrid.find(
+                                                c => c.dateKey === dateKey && c.shift === shift
+                                            );
+                                            const available = cell ? cell.canWork : true;
+                                            return (
+                                                <button
+                                                    key={dateKey}
+                                                    onClick={() => toggleCell(dateKey, shift)}
+                                                    className={`h-10 rounded text-xs font-semibold border transition-colors ${
+                                                        available
+                                                            ? 'bg-green-100 border-green-200 text-green-800 hover:bg-green-200'
+                                                            : 'bg-red-100 border-red-200 text-red-800 hover:bg-red-200'
+                                                    }`}
+                                                >
+                                                    {available ? 'זמין' : 'חסום'}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Modal Footer */}
+                    <div className="px-6 pb-6 flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+                        <button
+                            onClick={() => setEditTarget(null)}
+                            className="px-5 py-2 text-sm font-semibold rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition-colors"
+                        >
+                            ביטול
+                        </button>
+                        <button
+                            onClick={handleSaveOverride}
+                            disabled={isSavingOverride}
+                            className="px-5 py-2 text-sm font-semibold rounded-lg bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50 transition-colors"
+                        >
+                            {isSavingOverride ? 'שומר...' : 'שמור שינויים'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
         </div>
     );
 }

@@ -6,6 +6,11 @@ import scheduleRoutes from '../../routes/schedule.routes';
 import { User } from '../../models/User';
 import { Schedule } from '../../models/Schedule';
 import { Notification } from '../../models/Notification';
+import { setupTestDatabase, teardownTestDatabase, clearCollections } from '../../test/dbSetup';
+
+beforeAll(setupTestDatabase);
+afterAll(teardownTestDatabase);
+afterEach(clearCollections);
 
 const app = express();
 app.use(express.json());
