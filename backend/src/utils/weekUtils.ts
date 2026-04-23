@@ -83,3 +83,36 @@ export function getCurrentWeekId(): string {
 
   return `${weekYear}-W${String(weekNum).padStart(2, '0')}`;
 }
+
+/**
+ * Returns the ISO weekId for the week immediately following weekId.
+ * Handles year-boundary rollover (e.g. 2015-W53 → 2016-W01).
+ */
+export function getNextWeekId(weekId: string): string {
+  const { year, week } = parseWeekId(weekId);
+  const monday = getISOWeekMondayUTC(year, week);
+  const nextMonday = new Date(monday.getTime() + 7 * DAY_MS);
+  // nextMonday is always a Monday; its Thursday is exactly 3 days later
+  const thursday = new Date(
+    Date.UTC(
+      nextMonday.getUTCFullYear(),
+      nextMonday.getUTCMonth(),
+      nextMonday.getUTCDate() + 3
+    )
+  );
+  const jan1 = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
+  const weekNum = Math.ceil(
+    ((thursday.getTime() - jan1.getTime()) / DAY_MS + 1) / 7
+  );
+  return `${thursday.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+}
+
+/**
+ * The weekId employees are currently allowed to submit constraints for.
+ * Before Monday 23:59:59.999 IST → current week.
+ * After  Monday 23:59:59.999 IST → next week.
+ */
+export function getAllowedWeekId(): string {
+  const current = getCurrentWeekId();
+  return isConstraintDeadlinePassed(current) ? getNextWeekId(current) : current;
+}
