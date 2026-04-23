@@ -1,0 +1,242 @@
+import { useEffect, useState } from 'react';
+import { userApi } from '../lib/api';
+import type { User } from '../types/auth';
+
+interface CreateForm {
+  name: string;
+  email: string;
+  password: string;
+  role: 'employee' | 'manager';
+  isFixedMorningEmployee: boolean;
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  employee: 'עובד',
+  manager: 'מנהל',
+  admin: 'מנהל מערכת',
+};
+
+export default function UsersPage() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [loadError, setLoadError] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState<CreateForm>({
+    name: '',
+    email: '',
+    password: '',
+    role: 'employee',
+    isFixedMorningEmployee: false,
+  });
+  const [formError, setFormError] = useState('');
+  const [formLoading, setFormLoading] = useState(false);
+
+  useEffect(() => {
+    userApi
+      .getUsers()
+      .then((res) => setUsers(res.users))
+      .catch((err) => setLoadError(err instanceof Error ? err.message : 'שגיאה בטעינת משתמשים'));
+  }, []);
+
+  function setField<K extends keyof CreateForm>(key: K, value: CreateForm[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setFormError('');
+    setFormLoading(true);
+    try {
+      const res = await userApi.createUser(form);
+      setUsers((prev) => [...prev, res.user]);
+      setShowForm(false);
+      setForm({ name: '', email: '', password: '', role: 'employee', isFixedMorningEmployee: false });
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'שגיאה ביצירת משתמש');
+    } finally {
+      setFormLoading(false);
+    }
+  }
+
+  async function toggleStatus(user: User) {
+    try {
+      const res = await userApi.setStatus(user._id, !user.isActive);
+      setUsers((prev) => prev.map((u) => (u._id === user._id ? res.user : u)));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'שגיאה בעדכון סטטוס');
+    }
+  }
+
+  async function toggleFixedMorning(user: User) {
+    try {
+      const res = await userApi.setFixedMorning(user._id, !user.isFixedMorningEmployee);
+      setUsers((prev) => prev.map((u) => (u._id === user._id ? res.user : u)));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'שגיאה בעדכון הגדרת בוקר');
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-blue-700">ניהול משתמשים</h1>
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition-colors"
+          >
+            {showForm ? 'ביטול' : '+ צור משתמש חדש'}
+          </button>
+        </div>
+
+        {showForm && (
+          <div className="bg-white rounded-2xl shadow-md p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">יצירת משתמש חדש</h2>
+
+            {formError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                {formError}
+              </div>
+            )}
+
+            <form onSubmit={handleCreate} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">שם מלא</label>
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => setField('name', e.target.value)}
+                  required
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="ישראל ישראלי"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">אימייל</label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setField('email', e.target.value)}
+                  required
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="name@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">סיסמה</label>
+                <input
+                  type="password"
+                  value={form.password}
+                  onChange={(e) => setField('password', e.target.value)}
+                  required
+                  minLength={8}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="לפחות 8 תווים"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">תפקיד</label>
+                <select
+                  value={form.role}
+                  onChange={(e) => setField('role', e.target.value as 'employee' | 'manager')}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="employee">עובד</option>
+                  <option value="manager">מנהל</option>
+                </select>
+              </div>
+
+              <div className="sm:col-span-2 flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="fixedMorning"
+                  checked={form.isFixedMorningEmployee}
+                  onChange={(e) => setField('isFixedMorningEmployee', e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded"
+                />
+                <label htmlFor="fixedMorning" className="text-sm font-medium text-gray-700">
+                  עובד בוקר קבוע (מוקצה אוטומטית למשמרות בוקר א׳–ה׳)
+                </label>
+              </div>
+
+              <div className="sm:col-span-2">
+                <button
+                  type="submit"
+                  disabled={formLoading}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium px-6 py-2 rounded-lg transition-colors"
+                >
+                  {formLoading ? 'יוצר...' : 'צור משתמש'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {loadError && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 mb-4">
+            {loadError}
+          </div>
+        )}
+
+        <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-100 text-gray-600 uppercase text-xs">
+              <tr>
+                <th className="px-4 py-3 text-right">שם</th>
+                <th className="px-4 py-3 text-right">אימייל</th>
+                <th className="px-4 py-3 text-right">תפקיד</th>
+                <th className="px-4 py-3 text-center">עובד בוקר קבוע</th>
+                <th className="px-4 py-3 text-center">סטטוס</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {users.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-gray-400">
+                    אין משתמשים
+                  </td>
+                </tr>
+              )}
+              {users.map((user) => (
+                <tr key={user._id} className={user.isActive ? '' : 'opacity-50'}>
+                  <td className="px-4 py-3 font-medium text-gray-800">{user.name}</td>
+                  <td className="px-4 py-3 text-gray-600">{user.email}</td>
+                  <td className="px-4 py-3 text-gray-600">{ROLE_LABELS[user.role] ?? user.role}</td>
+                  <td className="px-4 py-3 text-center">
+                    <button
+                      onClick={() => toggleFixedMorning(user)}
+                      className={`w-10 h-5 rounded-full transition-colors ${
+                        user.isFixedMorningEmployee ? 'bg-blue-500' : 'bg-gray-300'
+                      }`}
+                      title={user.isFixedMorningEmployee ? 'הסר עובד בוקר קבוע' : 'הגדר עובד בוקר קבוע'}
+                    >
+                      <span
+                        className={`block w-4 h-4 rounded-full bg-white shadow mx-0.5 transition-transform ${
+                          user.isFixedMorningEmployee ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <button
+                      onClick={() => toggleStatus(user)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                        user.isActive
+                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                          : 'bg-red-100 text-red-700 hover:bg-red-200'
+                      }`}
+                    >
+                      {user.isActive ? 'פעיל' : 'מושהה'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  );
+}
