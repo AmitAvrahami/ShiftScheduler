@@ -1,5 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import AppError from '../utils/AppError';
+import authRouter from './auth.routes';
+import userRouter from './user.routes';
 
 const router = Router();
 
@@ -11,8 +13,8 @@ router.get('/health', (_req: Request, res: Response) => {
   });
 });
 
-// router.use('/auth', authRouter)
-// router.use('/users', usersRouter)
+router.use('/auth', authRouter);
+router.use('/users', userRouter);
 // router.use('/constraints', constraintsRouter)
 // router.use('/schedules', schedulesRouter)
 // router.use('/shift-definitions', shiftDefinitionsRouter)
