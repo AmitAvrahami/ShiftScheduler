@@ -4,6 +4,13 @@ import authRouter from './auth.routes';
 import userRouter from './user.routes';
 import constraintsRouter from './constraint.routes';
 import shiftDefinitionsRouter from './shiftDefinition.routes';
+import schedulesRouter from './schedule.routes';
+import shiftsRouter from './shift.routes';
+import assignmentsRouter from './assignment.routes';
+import notificationsRouter from './notification.routes';
+import auditLogsRouter from './auditLog.routes';
+import settingsRouter from './settings.routes';
+import swapRequestsRouter from './swapRequest.routes';
 
 const router = Router();
 
@@ -19,11 +26,13 @@ router.use('/auth', authRouter);
 router.use('/users', userRouter);
 router.use('/constraints', constraintsRouter);
 router.use('/shift-definitions', shiftDefinitionsRouter);
-// router.use('/schedules', schedulesRouter)
-// router.use('/assignments', assignmentsRouter)
-// router.use('/notifications', notificationsRouter)
-// router.use('/audit-logs', auditLogsRouter)
-// router.use('/settings', settingsRouter)
+router.use('/schedules', schedulesRouter);
+router.use('/shifts', shiftsRouter);
+router.use('/assignments', assignmentsRouter);
+router.use('/notifications', notificationsRouter);
+router.use('/audit-logs', auditLogsRouter);
+router.use('/settings', settingsRouter);
+router.use('/swap-requests', swapRequestsRouter);
 
 router.use((_req: Request, _res: Response, next: NextFunction) => {
   next(new AppError('Route not found', 404));
