@@ -1,8 +1,4 @@
-import { IUser } from '../models/User';
-import { IShift } from '../models/Shift';
-import { IShiftDefinition } from '../models/ShiftDefinition';
-import { IConstraint } from '../models/Constraint';
-import { IWeeklySchedule } from '../models/WeeklySchedule';
+import mongoose from 'mongoose';
 import {
   SolveRequest,
   SolveResult,
@@ -10,12 +6,54 @@ import {
 } from './solverClient';
 import { toDateKey } from '../utils/weekUtils';
 
+// Lean-compatible plain-object shapes — only the fields the mapper actually reads.
+// Using these instead of Document-extending model interfaces avoids the Lean vs Document
+// type mismatch when callers pass .lean() results.
+
+export interface LeanSchedule {
+  _id: mongoose.Types.ObjectId;
+  weekId: string;
+}
+
+export interface LeanUser {
+  _id: mongoose.Types.ObjectId;
+  role: 'employee' | 'manager' | 'admin';
+  isFixedMorningEmployee: boolean;
+}
+
+export interface LeanConstraintEntry {
+  date: Date;
+  definitionId: mongoose.Types.ObjectId;
+  canWork: boolean;
+}
+
+export interface LeanConstraint {
+  userId: mongoose.Types.ObjectId;
+  entries: LeanConstraintEntry[];
+}
+
+export interface LeanShiftDefinition {
+  _id: mongoose.Types.ObjectId;
+  name: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  crossesMidnight: boolean;
+}
+
+export interface LeanShift {
+  _id: mongoose.Types.ObjectId;
+  date: Date;
+  definitionId: mongoose.Types.ObjectId;
+  requiredCount: number;
+}
+
 export interface SchedulerInput {
-  schedule: IWeeklySchedule;
-  workers: IUser[];
-  shifts: IShift[];
-  shiftDefinitions: IShiftDefinition[];
-  constraints: IConstraint[];
+  schedule: LeanSchedule;
+  workers: LeanUser[];
+  shifts: LeanShift[];
+  shiftDefinitions: LeanShiftDefinition[];
+  constraints: LeanConstraint[];
 }
 
 export function toSolveRequest(input: SchedulerInput): SolveRequest {
@@ -29,7 +67,7 @@ export function toSolveRequest(input: SchedulerInput): SolveRequest {
     const constraint = constraintByUser.get(user._id.toString());
     return {
       id: user._id.toString(),
-      role: user.role as 'employee' | 'manager',
+      role: user.role === 'admin' ? 'manager' : user.role,
       is_fixed_morning: user.isFixedMorningEmployee,
       availability: constraint
         ? constraint.entries.map((entry) => ({
