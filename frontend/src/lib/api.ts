@@ -73,6 +73,13 @@ export const constraintApi = {
     return request(`/constraints/${weekId}`);
   },
 
+  getForUser(
+    weekId: string,
+    userId: string
+  ): Promise<{ success: boolean; constraint: Constraint | null; deadline: string; isLocked: boolean }> {
+    return request(`/constraints/${weekId}/users/${userId}`);
+  },
+
   upsertConstraints(
     weekId: string,
     entries: ConstraintEntry[]
@@ -81,5 +88,11 @@ export const constraintApi = {
       method: 'PUT',
       body: JSON.stringify({ entries }),
     });
+  },
+};
+
+export const scheduleApi = {
+  generate(weekId: string): Promise<{ success: boolean; message?: string }> {
+    return request(`/schedules/${weekId}/generate`, { method: 'POST' });
   },
 };
