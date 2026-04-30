@@ -5,73 +5,11 @@ import MainLayout from '../components/layout/MainLayout';
 import MaterialIcon from '../components/MaterialIcon';
 import ShiftCardConstraint from '../components/ShiftCardConstraint';
 import SuccessOverlay from '../components/SuccessOverlay';
-
-// IST = UTC+3 (fixed offset per project convention)
-function getCurrentWeekId(): string {
-  const IST_OFFSET_MS = 3 * 60 * 60 * 1000;
-  const nowIST = new Date(Date.now() + IST_OFFSET_MS);
-  const year = nowIST.getUTCFullYear();
-  const month = nowIST.getUTCMonth();
-  const day = nowIST.getUTCDate();
-
-  // ISO week number: Thursday-anchor algorithm
-  const thursday = new Date(Date.UTC(year, month, day));
-  thursday.setUTCDate(thursday.getUTCDate() + 4 - (thursday.getUTCDay() || 7));
-  const jan1 = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
-  const weekNum = Math.ceil(((thursday.getTime() - jan1.getTime()) / 86_400_000 + 1) / 7);
-  return `${thursday.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`;
-}
-
-function getNextWeekId(weekId: string): string {
-  const [yearStr, weekStr] = weekId.split('-W');
-  const year = parseInt(yearStr, 10);
-  const week = parseInt(weekStr, 10);
-  const jan4 = new Date(Date.UTC(year, 0, 4));
-  const jan4Day = jan4.getUTCDay() || 7;
-  const week1Monday = jan4.getTime() - (jan4Day - 1) * 86_400_000;
-  const mondayMs = week1Monday + (week - 1) * 7 * 86_400_000;
-  const thursday = new Date(mondayMs + 10 * 86_400_000);
-  const jan1 = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
-  const weekNum = Math.ceil(((thursday.getTime() - jan1.getTime()) / 86_400_000 + 1) / 7);
-  return `${thursday.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`;
-}
-
-function getConstraintDeadlineMs(weekId: string): number {
-  const [yearStr, weekStr] = weekId.split('-W');
-  const year = parseInt(yearStr, 10);
-  const week = parseInt(weekStr, 10);
-  const jan4 = new Date(Date.UTC(year, 0, 4));
-  const jan4Day = jan4.getUTCDay() || 7;
-  const week1Monday = jan4.getTime() - (jan4Day - 1) * 86_400_000;
-  const monday = new Date(week1Monday + (week - 1) * 7 * 86_400_000);
-  return Date.UTC(monday.getUTCFullYear(), monday.getUTCMonth(), monday.getUTCDate(), 20, 59, 59, 999);
-}
-
-function getAllowedWeekId(): string {
-  const current = getCurrentWeekId();
-  return Date.now() > getConstraintDeadlineMs(current) ? getNextWeekId(current) : current;
-}
-
-function getWeekDates(weekId: string): Date[] {
-  const [yearStr, weekStr] = weekId.split('-W');
-  const year = parseInt(yearStr, 10);
-  const week = parseInt(weekStr, 10);
-  const jan4 = new Date(Date.UTC(year, 0, 4));
-  const jan4Day = jan4.getUTCDay() || 7;
-  const week1Monday = jan4.getTime() - (jan4Day - 1) * 86_400_000;
-  const monday = new Date(week1Monday + (week - 1) * 7 * 86_400_000);
-  const sundayMs = monday.getTime() - 86_400_000;
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(sundayMs + i * 86_400_000);
-    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-  });
-}
-
-function toDateKey(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-const DAY_LABELS = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'יום שבת'];
+import {
+  getAllowedWeekId,
+  getWeekDates,
+  toDateKey,
+} from '../utils/weekUtils';
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { userApi } from '../lib/api';
 import type { User } from '../types/auth';
+import MainLayout from '../components/layout/MainLayout';
+import MaterialIcon from '../components/MaterialIcon';
 
 interface CreateForm {
   name: string;
@@ -76,20 +78,24 @@ export default function UsersPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-6">
+    <MainLayout
+      title="ניהול משתמשים"
+      subtitle="הגדרות צוות"
+    >
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-blue-700">ניהול משתמשים</h1>
+          <h1 className="text-2xl font-bold text-blue-700">משתמשי המערכת</h1>
           <button
             onClick={() => setShowForm((v) => !v)}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition-colors"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
           >
-            {showForm ? 'ביטול' : '+ צור משתמש חדש'}
+            <MaterialIcon name={showForm ? 'close' : 'add'} />
+            {showForm ? 'ביטול' : 'צור משתמש חדש'}
           </button>
         </div>
 
         {showForm && (
-          <div className="bg-white rounded-2xl shadow-md p-6 mb-6">
+          <div className="bg-white rounded-2xl shadow-bezeq-card border border-outline-variant p-6 mb-6">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">יצירת משתמש חדש</h2>
 
             {formError && (
@@ -180,7 +186,7 @@ export default function UsersPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-bezeq-card border border-outline-variant overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-100 text-gray-600 uppercase text-xs">
               <tr>
@@ -207,14 +213,14 @@ export default function UsersPage() {
                   <td className="px-4 py-3 text-center">
                     <button
                       onClick={() => toggleFixedMorning(user)}
-                      className={`w-10 h-5 rounded-full transition-colors ${
+                      className={`w-10 h-5 rounded-full transition-colors relative ${
                         user.isFixedMorningEmployee ? 'bg-blue-500' : 'bg-gray-300'
                       }`}
                       title={user.isFixedMorningEmployee ? 'הסר עובד בוקר קבוע' : 'הגדר עובד בוקר קבוע'}
                     >
                       <span
-                        className={`block w-4 h-4 rounded-full bg-white shadow mx-0.5 transition-transform ${
-                          user.isFixedMorningEmployee ? 'translate-x-5' : 'translate-x-0'
+                        className={`block w-4 h-4 rounded-full bg-white shadow mx-0.5 transition-transform absolute top-0.5 ${
+                          user.isFixedMorningEmployee ? 'right-0.5' : 'left-0.5'
                         }`}
                       />
                     </button>
@@ -237,6 +243,6 @@ export default function UsersPage() {
           </table>
         </div>
       </div>
-    </main>
+    </MainLayout>
   );
 }
