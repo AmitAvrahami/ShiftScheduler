@@ -20,7 +20,7 @@ const createSchema = z.object({
 });
 
 const updateSchema = z.object({
-  status: z.enum(['draft', 'published', 'archived']).optional(),
+  status: z.enum(['open', 'locked', 'generating', 'draft', 'published', 'archived']).optional(),
   generatedBy: z.enum(['auto', 'manual']).optional(),
 });
 
@@ -66,7 +66,7 @@ export async function createSchedule(
 
     const existing = await WeeklySchedule.findOne({ weekId });
     if (existing) {
-      if (existing.status !== 'draft') {
+      if (!['open', 'draft'].includes(existing.status)) {
         return next(new AppError(`Schedule for week ${weekId} already exists`, 409));
       }
       const before = existing.toObject();
@@ -86,7 +86,7 @@ export async function createSchedule(
       weekId,
       startDate: dates[0],
       endDate: dates[6],
-      status: 'draft',
+      status: 'open',
       generatedBy,
     });
 
@@ -95,7 +95,7 @@ export async function createSchedule(
       action: 'schedule_created',
       refModel: 'WeeklySchedule',
       refId: schedule._id,
-      after: { weekId, generatedBy, status: 'draft' },
+      after: { weekId, generatedBy, status: 'open' },
       ip: req.ip,
     });
 
@@ -115,7 +115,7 @@ export async function getScheduleById(
     if (!schedule) return next(new AppError('Schedule not found', 404));
 
     const isManagerOrAdmin = req.user!.role === 'manager' || req.user!.role === 'admin';
-    if (!isManagerOrAdmin && schedule.status === 'draft') {
+    if (!isManagerOrAdmin && schedule.status !== 'published') {
       return next(new AppError('Schedule not found', 404));
     }
 
@@ -144,9 +144,12 @@ export async function updateSchedule(
       const { status: currentStatus } = schedule;
 
       const validTransitions: Record<string, string[]> = {
-        draft: ['published'],
-        published: ['archived'],
-        archived: [],
+        open:       ['locked'],
+        locked:     ['open'],       // 'generating' is auto-only (via generateSchedule)
+        generating: [],             // all exits are auto — PATCH always returns 422
+        draft:      ['published', 'open'],
+        published:  ['archived'],
+        archived:   [],
       };
 
       if (!validTransitions[currentStatus].includes(newStatus)) {
@@ -214,8 +217,8 @@ export async function deleteSchedule(
     const schedule = await WeeklySchedule.findById(req.params.id);
     if (!schedule) return next(new AppError('Schedule not found', 404));
 
-    if (schedule.status !== 'draft') {
-      return next(new AppError('Only draft schedules can be deleted', 422));
+    if (!['open', 'draft'].includes(schedule.status)) {
+      return next(new AppError('Only open or draft schedules can be deleted', 422));
     }
 
     await cascadeDeleteSchedule(schedule._id as mongoose.Types.ObjectId);
@@ -255,10 +258,10 @@ export async function cloneSchedule(
     if (!source) return next(new AppError('Schedule not found', 404));
 
     const existingTarget = await WeeklySchedule.findOne({ weekId: targetWeekId });
-    if (existingTarget && existingTarget.status !== 'draft') {
+    if (existingTarget && !['open', 'draft'].includes(existingTarget.status)) {
       return next(new AppError(`A ${existingTarget.status} schedule already exists for week ${targetWeekId}`, 409));
     }
-    if (existingTarget && existingTarget.status === 'draft') {
+    if (existingTarget && ['open', 'draft'].includes(existingTarget.status)) {
       await cascadeDeleteSchedule(existingTarget._id as mongoose.Types.ObjectId);
     }
 
@@ -329,7 +332,7 @@ export async function generateSchedule(
     const actorId = new mongoose.Types.ObjectId(req.user!._id as string);
     const ip = req.ip ?? 'unknown';
 
-    // Ensure a draft schedule exists before invoking the solver
+    // Ensure a schedule exists before invoking the solver
     const existing = await WeeklySchedule.findOne({ weekId });
     if (!existing) {
       const dates = getWeekDates(weekId);
@@ -337,7 +340,7 @@ export async function generateSchedule(
         weekId,
         startDate: dates[0],
         endDate: dates[6],
-        status: 'draft',
+        status: 'open',
         generatedBy: 'auto',
       });
       await AuditLog.create({
@@ -345,14 +348,25 @@ export async function generateSchedule(
         action: 'schedule_created',
         refModel: 'WeeklySchedule',
         refId: created._id,
-        after: { weekId, generatedBy: 'auto', status: 'draft' },
+        after: { weekId, generatedBy: 'auto', status: 'open' },
         ip,
       });
-    } else if (existing.status !== 'draft') {
+    } else if (!['open', 'locked', 'draft'].includes(existing.status)) {
       return next(new AppError(`Cannot re-generate a ${existing.status} schedule`, 422));
     }
 
-    const result = await runScheduler(weekId, actorId, ip);
+    // Transition to 'generating' before invoking the solver
+    await WeeklySchedule.findOneAndUpdate({ weekId }, { $set: { status: 'generating' } });
+
+    let result: Awaited<ReturnType<typeof runScheduler>>;
+    try {
+      result = await runScheduler(weekId, actorId, ip);
+      await WeeklySchedule.findOneAndUpdate({ weekId }, { $set: { status: 'draft' } });
+    } catch (solverErr) {
+      await WeeklySchedule.findOneAndUpdate({ weekId }, { $set: { status: 'locked' } });
+      throw solverErr;
+    }
+
     res.json({ success: true, ...result });
   } catch (err) {
     next(err);

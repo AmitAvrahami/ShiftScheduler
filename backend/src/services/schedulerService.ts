@@ -26,8 +26,8 @@ export async function runScheduler(
   // Phase 1: load data — schedule first (gate), then remaining reads in parallel
   const schedule = await WeeklySchedule.findOne({ weekId }).lean();
   if (!schedule) throw new AppError(`Schedule not found for week ${weekId}`, 404);
-  if (schedule.status !== 'draft') {
-    throw new AppError('Only draft schedules can be auto-generated', 422);
+  if (schedule.status !== 'generating') {
+    throw new AppError('Only generating-state schedules can be auto-generated', 422);
   }
 
   const scheduleId = schedule._id as mongoose.Types.ObjectId;

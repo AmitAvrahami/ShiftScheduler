@@ -69,6 +69,26 @@ async function seedPublishedSchedule() {
   });
 }
 
+async function seedOpenSchedule() {
+  return WeeklySchedule.create({
+    weekId: TEST_WEEK,
+    startDate: new Date('2026-05-10'),
+    endDate: new Date('2026-05-16'),
+    status: 'open',
+    generatedBy: 'manual',
+  });
+}
+
+async function seedLockedSchedule() {
+  return WeeklySchedule.create({
+    weekId: TEST_WEEK,
+    startDate: new Date('2026-05-10'),
+    endDate: new Date('2026-05-16'),
+    status: 'locked',
+    generatedBy: 'manual',
+  });
+}
+
 describe('GET /api/v1/schedules', () => {
   it('returns 401 with no token', async () => {
     const res = await request(app).get('/api/v1/schedules');
@@ -136,12 +156,28 @@ describe('POST /api/v1/schedules', () => {
     expect(log).not.toBeNull();
   });
 
+  it('returns 201 and re-generates if an open schedule already exists for the week', async () => {
+    const { token } = await seedManager();
+    await seedOpenSchedule();
+    const res = await request(app).post('/api/v1/schedules').set('Authorization', `Bearer ${token}`).send({ weekId: TEST_WEEK, generatedBy: 'auto' });
+    expect(res.status).toBe(201);
+    const log = await AuditLog.findOne({ action: 'schedule_regenerated' });
+    expect(log).not.toBeNull();
+  });
+
+  it('returns 409 if a locked schedule already exists for the week', async () => {
+    const { token } = await seedManager();
+    await seedLockedSchedule();
+    const res = await request(app).post('/api/v1/schedules').set('Authorization', `Bearer ${token}`).send({ weekId: TEST_WEEK, generatedBy: 'manual' });
+    expect(res.status).toBe(409);
+  });
+
   it('manager can create a schedule and audit log is created', async () => {
     const { token } = await seedManager();
     const res = await request(app).post('/api/v1/schedules').set('Authorization', `Bearer ${token}`).send({ weekId: TEST_WEEK, generatedBy: 'manual' });
     expect(res.status).toBe(201);
     expect(res.body.schedule.weekId).toBe(TEST_WEEK);
-    expect(res.body.schedule.status).toBe('draft');
+    expect(res.body.schedule.status).toBe('open');
 
     const log = await AuditLog.findOne({ action: 'schedule_created' });
     expect(log).not.toBeNull();
@@ -239,5 +275,119 @@ describe('DELETE /api/v1/schedules/:id', () => {
 
     const log = await AuditLog.findOne({ action: 'schedule_deleted' });
     expect(log).not.toBeNull();
+  });
+
+  it('deleting open schedule succeeds', async () => {
+    const { token } = await seedManager();
+    const schedule = await seedOpenSchedule();
+    const res = await request(app).delete(`/api/v1/schedules/${schedule._id}`).set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(await WeeklySchedule.findById(schedule._id)).toBeNull();
+  });
+});
+
+describe('5-state lifecycle transitions', () => {
+  it('POST creates schedule with status open', async () => {
+    const { token } = await seedManager();
+    const res = await request(app).post('/api/v1/schedules').set('Authorization', `Bearer ${token}`).send({ weekId: TEST_WEEK, generatedBy: 'manual' });
+    expect(res.status).toBe(201);
+    expect(res.body.schedule.status).toBe('open');
+  });
+
+  it('open → locked (valid PATCH)', async () => {
+    const { token } = await seedManager();
+    const schedule = await seedOpenSchedule();
+    const res = await request(app).patch(`/api/v1/schedules/${schedule._id}`).set('Authorization', `Bearer ${token}`).send({ status: 'locked' });
+    expect(res.status).toBe(200);
+    expect(res.body.schedule.status).toBe('locked');
+  });
+
+  it('locked → open (unlock, valid PATCH)', async () => {
+    const { token } = await seedManager();
+    const schedule = await seedLockedSchedule();
+    const res = await request(app).patch(`/api/v1/schedules/${schedule._id}`).set('Authorization', `Bearer ${token}`).send({ status: 'open' });
+    expect(res.status).toBe(200);
+    expect(res.body.schedule.status).toBe('open');
+  });
+
+  it('open → draft is invalid (422)', async () => {
+    const { token } = await seedManager();
+    const schedule = await seedOpenSchedule();
+    const res = await request(app).patch(`/api/v1/schedules/${schedule._id}`).set('Authorization', `Bearer ${token}`).send({ status: 'draft' });
+    expect(res.status).toBe(422);
+  });
+
+  it('open → published is invalid (422)', async () => {
+    const { token } = await seedManager();
+    const schedule = await seedOpenSchedule();
+    const res = await request(app).patch(`/api/v1/schedules/${schedule._id}`).set('Authorization', `Bearer ${token}`).send({ status: 'published' });
+    expect(res.status).toBe(422);
+  });
+
+  it('locked → generating via PATCH is rejected (auto-only, 422)', async () => {
+    const { token } = await seedManager();
+    const schedule = await seedLockedSchedule();
+    const res = await request(app).patch(`/api/v1/schedules/${schedule._id}`).set('Authorization', `Bearer ${token}`).send({ status: 'generating' });
+    expect(res.status).toBe(422);
+  });
+
+  it('generating → draft via PATCH is rejected (auto-only, 422)', async () => {
+    const { token } = await seedManager();
+    const schedule = await WeeklySchedule.create({
+      weekId: TEST_WEEK, startDate: new Date('2026-05-10'), endDate: new Date('2026-05-16'),
+      status: 'generating', generatedBy: 'manual',
+    });
+    const res = await request(app).patch(`/api/v1/schedules/${schedule._id}`).set('Authorization', `Bearer ${token}`).send({ status: 'draft' });
+    expect(res.status).toBe(422);
+  });
+
+  it('employee gets 404 for open schedule', async () => {
+    const { token } = await seedEmployee();
+    const schedule = await seedOpenSchedule();
+    const res = await request(app).get(`/api/v1/schedules/${schedule._id}`).set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(404);
+  });
+
+  it('employee gets 404 for locked schedule', async () => {
+    const { token } = await seedEmployee();
+    const schedule = await seedLockedSchedule();
+    const res = await request(app).get(`/api/v1/schedules/${schedule._id}`).set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(404);
+  });
+
+  it('employee gets 404 for generating schedule', async () => {
+    const { token } = await seedEmployee();
+    const schedule = await WeeklySchedule.create({
+      weekId: TEST_WEEK, startDate: new Date('2026-05-10'), endDate: new Date('2026-05-16'),
+      status: 'generating', generatedBy: 'manual',
+    });
+    const res = await request(app).get(`/api/v1/schedules/${schedule._id}`).set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(404);
+  });
+
+  it('employee can access published schedule (regression)', async () => {
+    const { token } = await seedEmployee();
+    const schedule = await seedPublishedSchedule();
+    const res = await request(app).get(`/api/v1/schedules/${schedule._id}`).set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+  });
+
+  it('draft → open (manager resets week, valid PATCH)', async () => {
+    const { token } = await seedManager();
+    const schedule = await seedDraftSchedule();
+    const res = await request(app).patch(`/api/v1/schedules/${schedule._id}`).set('Authorization', `Bearer ${token}`).send({ status: 'open' });
+    expect(res.status).toBe(200);
+    expect(res.body.schedule.status).toBe('open');
+  });
+
+  it('draft → published is still valid (regression)', async () => {
+    const { token } = await seedManager();
+    await seedEmployee();
+    const schedule = await seedDraftSchedule();
+    const res = await request(app).patch(`/api/v1/schedules/${schedule._id}`).set('Authorization', `Bearer ${token}`).send({ status: 'published' });
+    expect(res.status).toBe(200);
+    expect(res.body.schedule.status).toBe('published');
+    const notifications = await Notification.find({ type: 'schedule_published' });
+    expect(notifications.length).toBeGreaterThan(0);
   });
 });

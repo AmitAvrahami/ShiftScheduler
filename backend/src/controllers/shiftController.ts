@@ -36,7 +36,7 @@ export async function getShifts(req: Request, res: Response, next: NextFunction)
     if (!schedule) return next(new AppError('Schedule not found', 404));
 
     const isManagerOrAdmin = req.user!.role === 'manager' || req.user!.role === 'admin';
-    if (!isManagerOrAdmin && schedule.status === 'draft') {
+    if (!isManagerOrAdmin && schedule.status !== 'published') {
       return next(new AppError('Schedule not found', 404));
     }
 
@@ -82,7 +82,7 @@ export async function getShiftById(req: Request, res: Response, next: NextFuncti
 
     const schedule = await WeeklySchedule.findById(shift.scheduleId);
     const isManagerOrAdmin = req.user!.role === 'manager' || req.user!.role === 'admin';
-    if (!isManagerOrAdmin && schedule?.status === 'draft') {
+    if (!isManagerOrAdmin && schedule?.status !== 'published') {
       return next(new AppError('Shift not found', 404));
     }
 

@@ -14,6 +14,15 @@ Automated CSP-based shift management for 24/7 control rooms (IST Timezone).
 - **Format:** `YYYY-MM-DD` via `local-time` keys.
 - **UI:** Hebrew (`lang="he"`), RTL, Week starts Sunday (0).
 
+## 🔄 Weekly Lifecycle (State Machine)
+
+- **Map:** `open` -> `locked` -> `generating` -> `draft` -> `published` -> `archived`.
+- **open:** Employees can submit constraints.
+- **locked:** Deadline passed; constraints fixed (except manager override).
+- **generating:** CSP solver is running.
+- **draft:** Schedule created; manager reviewing/editing.
+- **published:** Employees can view their assigned shifts.
+
 ## 💻 Commands
 
 - **Dev:** `npm run dev` (root) | **Lint:** `npm run lint` | **Format:** `npm run format`.

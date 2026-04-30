@@ -4,7 +4,7 @@ export interface IWeeklySchedule extends Document {
   weekId: string;
   startDate: Date;
   endDate: Date;
-  status: 'draft' | 'published' | 'archived';
+  status: 'open' | 'locked' | 'generating' | 'draft' | 'published' | 'archived';
   generatedBy: 'auto' | 'manual';
   publishedAt?: Date;
   publishedBy?: mongoose.Types.ObjectId;
@@ -19,9 +19,9 @@ const weeklyScheduleSchema = new Schema<IWeeklySchedule>(
     endDate: { type: Date, required: true },
     status: {
       type: String,
-      enum: ['draft', 'published', 'archived'],
+      enum: ['open', 'locked', 'generating', 'draft', 'published', 'archived'],
       required: true,
-      default: 'draft',
+      default: 'open',
     },
     generatedBy: { type: String, enum: ['auto', 'manual'], required: true },
     publishedAt: { type: Date },

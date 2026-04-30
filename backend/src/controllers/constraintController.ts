@@ -15,6 +15,7 @@ import {
 } from '../utils/weekUtils';
 
 import { broadcastToEmployees } from '../services/notificationService';
+import WeeklySchedule from '../models/WeeklySchedule';
 
 const WEEK_ID_RE = /^\d{4}-W\d{2}$/;
 
@@ -59,13 +60,19 @@ export async function getMyConstraints(
     // Check for explicit lock in settings
     const lockSetting = await SystemSettings.findOne({ key: `lock_constraints_${weekId}` });
     const isExplicitlyLocked = !!lockSetting?.value;
-    const isLocked = deadlinePassed || isExplicitlyLocked;
+
+    // Check schedule lifecycle state — any state beyond 'open' locks constraint submission
+    const scheduleDoc = await WeeklySchedule.findOne({ weekId }).lean();
+    const isScheduleLocked = !!scheduleDoc && scheduleDoc.status !== 'open';
+    const isLocked = deadlinePassed || isExplicitlyLocked || isScheduleLocked;
+    const weekStatus = scheduleDoc?.status ?? null;
 
     res.json({
       success: true,
       constraint: constraint ?? null,
       deadline: deadline.toISOString(),
       isLocked,
+      weekStatus,
     });
   } catch (err) {
     next(err);
@@ -86,8 +93,10 @@ export async function upsertMyConstraints(
       const deadlinePassed = isConstraintDeadlinePassed(weekId);
       const lockSetting = await SystemSettings.findOne({ key: `lock_constraints_${weekId}` });
       const isExplicitlyLocked = !!lockSetting?.value;
+      const scheduleDoc = await WeeklySchedule.findOne({ weekId }).lean();
+      const isScheduleLocked = !!scheduleDoc && scheduleDoc.status !== 'open';
 
-      if (deadlinePassed || isExplicitlyLocked) {
+      if (deadlinePassed || isExplicitlyLocked || isScheduleLocked) {
         const exception = await ConstraintException.findOne({
           employeeId: req.user!._id,
           weekId,
@@ -96,7 +105,9 @@ export async function upsertMyConstraints(
         if (!exception) {
           const message = isExplicitlyLocked
             ? 'הגשת אילוצים לשבוע זה ננעלה על ידי המנהל.'
-            : 'Deadline passed. Request an unlock from your manager.';
+            : isScheduleLocked
+              ? 'הגשת אילוצים ננעלה כי השבוע עבר לשלב הבא.'
+              : 'Deadline passed. Request an unlock from your manager.';
           return next(new AppError(message, 403));
         }
         // Consume the exception — single use
@@ -160,12 +171,17 @@ export async function getAllConstraintsForWeek(
     const lockSetting = await SystemSettings.findOne({ key: `lock_constraints_${weekId}` });
     const isExplicitlyLocked = !!lockSetting?.value;
 
+    const scheduleDoc = await WeeklySchedule.findOne({ weekId }).lean();
+    const isScheduleLocked = !!scheduleDoc && scheduleDoc.status !== 'open';
+    const weekStatus = scheduleDoc?.status ?? null;
+
     res.json({
       success: true,
       constraints,
       deadline: deadline.toISOString(),
-      isLocked: deadlinePassed || isExplicitlyLocked,
+      isLocked: deadlinePassed || isExplicitlyLocked || isScheduleLocked,
       isExplicitlyLocked,
+      weekStatus,
     });
   } catch (err) {
     next(err);

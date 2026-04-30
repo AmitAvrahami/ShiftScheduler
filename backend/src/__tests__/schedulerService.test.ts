@@ -36,7 +36,7 @@ const ACTOR_ID = new mongoose.Types.ObjectId('000000000000000000000001');
 
 // ---- Seed helpers ----
 
-async function seedSchedule(status: 'draft' | 'published' = 'draft') {
+async function seedSchedule(status: 'open' | 'locked' | 'generating' | 'draft' | 'published' = 'generating') {
   return WeeklySchedule.create({
     weekId: WEEK_ID,
     startDate: new Date(2026, 4, 10),
@@ -204,9 +204,33 @@ describe('runScheduler — guard: schedule not found', () => {
   });
 });
 
-describe('runScheduler — guard: non-draft schedule', () => {
+describe('runScheduler — guard: non-generating schedule', () => {
   it('throws AppError 422 for published schedule without calling solver', async () => {
     await seedSchedule('published');
+    await seedDefinition();
+    await seedEmployee();
+
+    await expect(runScheduler(WEEK_ID, ACTOR_ID, '127.0.0.1')).rejects.toMatchObject({
+      statusCode: 422,
+    });
+
+    expect(mockCallSolver).not.toHaveBeenCalled();
+  });
+
+  it('throws AppError 422 for open schedule (not yet generating)', async () => {
+    await seedSchedule('open');
+    await seedDefinition();
+    await seedEmployee();
+
+    await expect(runScheduler(WEEK_ID, ACTOR_ID, '127.0.0.1')).rejects.toMatchObject({
+      statusCode: 422,
+    });
+
+    expect(mockCallSolver).not.toHaveBeenCalled();
+  });
+
+  it('throws AppError 422 for locked schedule (not yet generating)', async () => {
+    await seedSchedule('locked');
     await seedDefinition();
     await seedEmployee();
 
