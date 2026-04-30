@@ -4,6 +4,7 @@ import type { ConstraintEntry, ShiftDefinition } from '../types/constraint';
 import MainLayout from '../components/layout/MainLayout';
 import MaterialIcon from '../components/MaterialIcon';
 import ShiftCardConstraint from '../components/ShiftCardConstraint';
+import SuccessOverlay from '../components/SuccessOverlay';
 
 // IST = UTC+3 (fixed offset per project convention)
 function getCurrentWeekId(): string {
@@ -86,6 +87,7 @@ export default function ConstraintPage() {
   const [loadError, setLoadError] = useState('');
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [notes, setNotes] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
     Promise.all([shiftDefinitionApi.getActive(), constraintApi.getConstraints(weekId)])
@@ -151,7 +153,10 @@ export default function ConstraintPage() {
 
     constraintApi
       .upsertConstraints(weekId, entries)
-      .then(() => setSaveStatus('saved'))
+      .then(() => {
+        setSaveStatus('saved');
+        setShowSuccessModal(true);
+      })
       .catch(() => setSaveStatus('error'));
   }
 
@@ -285,6 +290,7 @@ export default function ConstraintPage() {
           />
         </div>
       </div>
+      {showSuccessModal && <SuccessOverlay onClose={() => setShowSuccessModal(false)} />}
     </MainLayout>
   );
 }
