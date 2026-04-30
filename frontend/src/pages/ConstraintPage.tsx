@@ -90,7 +90,18 @@ export default function ConstraintPage() {
   useEffect(() => {
     Promise.all([shiftDefinitionApi.getActive(), constraintApi.getConstraints(weekId)])
       .then(([defsRes, constraintRes]) => {
-        setDefinitions(defsRes.definitions);
+        let definitions = defsRes.definitions;
+        
+        // If no definitions exist, inject mock data for testing/demo purposes
+        if (definitions.length === 0) {
+          definitions = [
+            { _id: 'mock-1', name: 'משמרת בוקר', startTime: '08:00', endTime: '16:00', color: '#E3F2FD', orderNumber: 1 },
+            { _id: 'mock-2', name: 'משמרת צהריים', startTime: '16:00', endTime: '00:00', color: '#FFF3E0', orderNumber: 2 },
+            { _id: 'mock-3', name: 'משמרת לילה', startTime: '00:00', endTime: '08:00', color: '#F3E5F5', orderNumber: 3 },
+          ];
+        }
+
+        setDefinitions(definitions);
         setIsLocked(constraintRes.isLocked);
         setDeadline(new Date(constraintRes.deadline));
 
