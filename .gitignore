@@ -6,6 +6,8 @@ dist/
 build/
 .vscode/
 *.log
+__pycache__/
+*.pyc
 
 # Python solver artefacts
 backend/solver/__pycache__/
