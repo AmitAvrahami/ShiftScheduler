@@ -1,88 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { constraintApi, shiftDefinitionApi } from '../lib/api';
 import type { ConstraintEntry, ShiftDefinition } from '../types/constraint';
-
-// IST = UTC+3 (fixed offset per project convention)
-function getCurrentWeekId(): string {
-  const IST_OFFSET_MS = 3 * 60 * 60 * 1000;
-  const nowIST = new Date(Date.now() + IST_OFFSET_MS);
-  const year = nowIST.getUTCFullYear();
-  const month = nowIST.getUTCMonth();
-  const day = nowIST.getUTCDate();
-
-  // ISO week number: Thursday-anchor algorithm
-  const thursday = new Date(Date.UTC(year, month, day));
-  thursday.setUTCDate(thursday.getUTCDate() + 4 - (thursday.getUTCDay() || 7));
-  const jan1 = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
-  const weekNum = Math.ceil(((thursday.getTime() - jan1.getTime()) / 86_400_000 + 1) / 7);
-  return `${thursday.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`;
-}
-
-// Returns 7 local-midnight Date objects (Sun–Sat) for the given ISO weekId.
-function getWeekDates(weekId: string): Date[] {
-  const [yearStr, weekStr] = weekId.split('-W');
-  const year = parseInt(yearStr, 10);
-  const week = parseInt(weekStr, 10);
-  const jan4 = new Date(Date.UTC(year, 0, 4));
-  const jan4Day = jan4.getUTCDay() || 7;
-  const week1Monday = jan4.getTime() - (jan4Day - 1) * 86_400_000;
-  const monday = new Date(week1Monday + (week - 1) * 7 * 86_400_000);
-  const sundayMs = monday.getTime() - 86_400_000;
-
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(sundayMs + i * 86_400_000);
-    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-  });
-}
-
-function toDateKey(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-// Returns the deadline timestamp (ms) for a given weekId: Monday 20:59:59.999 UTC = 23:59:59.999 IST
-function getConstraintDeadlineMs(weekId: string): number {
-  const [yearStr, weekStr] = weekId.split('-W');
-  const year = parseInt(yearStr, 10);
-  const week = parseInt(weekStr, 10);
-  const jan4 = new Date(Date.UTC(year, 0, 4));
-  const jan4Day = jan4.getUTCDay() || 7;
-  const week1Monday = jan4.getTime() - (jan4Day - 1) * 86_400_000;
-  const monday = new Date(week1Monday + (week - 1) * 7 * 86_400_000);
-  return Date.UTC(
-    monday.getUTCFullYear(),
-    monday.getUTCMonth(),
-    monday.getUTCDate(),
-    20,
-    59,
-    59,
-    999,
-  );
-}
-
-function getNextWeekId(weekId: string): string {
-  const [yearStr, weekStr] = weekId.split('-W');
-  const year = parseInt(yearStr, 10);
-  const week = parseInt(weekStr, 10);
-  const jan4 = new Date(Date.UTC(year, 0, 4));
-  const jan4Day = jan4.getUTCDay() || 7;
-  const week1Monday = jan4.getTime() - (jan4Day - 1) * 86_400_000;
-  const mondayMs = week1Monday + (week - 1) * 7 * 86_400_000;
-  // next Monday + 3 days = Thursday of next ISO week
-  const thursday = new Date(mondayMs + 10 * 86_400_000);
-  const jan1 = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
-  const weekNum = Math.ceil(
-    ((thursday.getTime() - jan1.getTime()) / 86_400_000 + 1) / 7,
-  );
-  return `${thursday.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`;
-}
-
-// Before Monday 23:59:59.999 IST → current week; after → next week.
-function getAllowedWeekId(): string {
-  const current = getCurrentWeekId();
-  return Date.now() > getConstraintDeadlineMs(current) ? getNextWeekId(current) : current;
-}
-
-const DAY_LABELS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'שבת'];
+import MainLayout from '../components/layout/MainLayout';
+import MaterialIcon from '../components/MaterialIcon';
+import ShiftCardConstraint from '../components/ShiftCardConstraint';
+import SuccessOverlay from '../components/SuccessOverlay';
+import {
+  getAllowedWeekId,
+  getWeekDates,
+  toDateKey,
+} from '../utils/weekUtils';
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -91,18 +18,30 @@ export default function ConstraintPage() {
   const weekDates = getWeekDates(weekId);
 
   const [definitions, setDefinitions] = useState<ShiftDefinition[]>([]);
-  // key = "definitionId:YYYY-MM-DD", value = true means canWork:false (checkbox checked)
+  // key = "definitionId:YYYY-MM-DD", value = true means canWork:false (blocked)
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [isLocked, setIsLocked] = useState(false);
   const [deadline, setDeadline] = useState<Date | null>(null);
   const [loadError, setLoadError] = useState('');
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [notes, setNotes] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
     Promise.all([shiftDefinitionApi.getActive(), constraintApi.getConstraints(weekId)])
       .then(([defsRes, constraintRes]) => {
-        setDefinitions(defsRes.definitions);
+        let definitions = defsRes.definitions;
+        
+        // If no definitions exist, inject mock data for testing/demo purposes
+        if (definitions.length === 0) {
+          definitions = [
+            { _id: 'mock-1', name: 'משמרת בוקר', startTime: '08:00', endTime: '16:00', color: '#E3F2FD', orderNumber: 1 },
+            { _id: 'mock-2', name: 'משמרת צהריים', startTime: '16:00', endTime: '00:00', color: '#FFF3E0', orderNumber: 2 },
+            { _id: 'mock-3', name: 'משמרת לילה', startTime: '00:00', endTime: '08:00', color: '#F3E5F5', orderNumber: 3 },
+          ];
+        }
+
+        setDefinitions(definitions);
         setIsLocked(constraintRes.isLocked);
         setDeadline(new Date(constraintRes.deadline));
 
@@ -114,27 +53,12 @@ export default function ConstraintPage() {
             }
           }
           setChecked(initial);
+          // Note: Backend doesn't support notes yet, but we'll prepare the UI
+          // setNotes(constraintRes.constraint.notes || '');
         }
       })
       .catch((err) => setLoadError(err instanceof Error ? err.message : 'שגיאה בטעינת נתונים'));
   }, [weekId]);
-
-  function buildEntries(state: Record<string, boolean>): ConstraintEntry[] {
-    return Object.entries(state)
-      .filter(([, val]) => val)
-      .map(([key]) => {
-        const [definitionId, date] = key.split(':');
-        return { definitionId, date, canWork: false };
-      });
-  }
-
-  function save(state: Record<string, boolean>) {
-    setSaveStatus('saving');
-    constraintApi
-      .upsertConstraints(weekId, buildEntries(state))
-      .then(() => setSaveStatus('saved'))
-      .catch(() => setSaveStatus('error'));
-  }
 
   function handleToggle(definitionId: string, dateKey: string) {
     if (isLocked) return;
@@ -142,12 +66,36 @@ export default function ConstraintPage() {
     setChecked((prev) => {
       const next = { ...prev, [key]: !prev[key] };
       if (!next[key]) delete next[key];
-
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => save(next), 300);
-
+      setSaveStatus('idle'); // Mark as unsaved
       return next;
     });
+  }
+
+  function handleClear() {
+    if (isLocked) return;
+    setChecked({});
+    setNotes('');
+    setSaveStatus('idle');
+  }
+
+  function handleSubmit() {
+    if (isLocked) return;
+    setSaveStatus('saving');
+    
+    const entries: ConstraintEntry[] = Object.entries(checked)
+      .filter(([, val]) => val)
+      .map(([key]) => {
+        const [definitionId, date] = key.split(':');
+        return { definitionId, date, canWork: false };
+      });
+
+    constraintApi
+      .upsertConstraints(weekId, entries)
+      .then(() => {
+        setSaveStatus('saved');
+        setShowSuccessModal(true);
+      })
+      .catch(() => setSaveStatus('error'));
   }
 
   const formattedDeadline = deadline
@@ -162,12 +110,15 @@ export default function ConstraintPage() {
     : null;
 
   return (
-    <main className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-5xl mx-auto">
-        {/* Deadline banner */}
+    <MainLayout
+      title="הגשת אילוצים שבועית"
+      subtitle="שבוע נוכחי"
+    >
+      <div className="max-w-[1200px] mx-auto pb-12">
+        {/* Deadline Banner */}
         {isLocked ? (
           <div className="mb-6 rounded-lg bg-red-50 border border-red-200 px-5 py-4 flex items-center gap-3">
-            <span className="text-red-600 text-xl">🔒</span>
+            <MaterialIcon name="lock" className="text-red-600" />
             <div>
               <p className="font-semibold text-red-700">הגשת האילוצים נעולה</p>
               {formattedDeadline && (
@@ -176,8 +127,8 @@ export default function ConstraintPage() {
             </div>
           </div>
         ) : (
-          <div className="mb-6 rounded-lg bg-blue-50 border border-blue-200 px-5 py-4 flex items-center gap-3">
-            <span className="text-blue-600 text-xl">📋</span>
+          <div className="mb-6 rounded-lg bg-blue-50 border border-blue-200 px-5 py-4 flex items-center gap-3 shadow-sm">
+            <MaterialIcon name="info" className="text-blue-600" />
             <div>
               <p className="font-semibold text-blue-700">הגשת אילוצים פתוחה</p>
               {formattedDeadline && (
@@ -187,29 +138,29 @@ export default function ConstraintPage() {
           </div>
         )}
 
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">
-            הגשת אילוצים — שבוע {weekId}
-          </h1>
-          <span
-            className={`text-sm font-medium px-3 py-1 rounded-full ${
-              saveStatus === 'saving'
-                ? 'bg-yellow-100 text-yellow-700'
-                : saveStatus === 'saved'
-                  ? 'bg-green-100 text-green-700'
-                  : saveStatus === 'error'
-                    ? 'bg-red-100 text-red-700'
-                    : 'bg-gray-100 text-gray-400'
-            }`}
-          >
-            {saveStatus === 'saving'
-              ? 'שומר...'
-              : saveStatus === 'saved'
-                ? 'נשמר ✓'
-                : saveStatus === 'error'
-                  ? 'שגיאה בשמירה'
-                  : ''}
-          </span>
+        {/* Header Section */}
+        <div className="mb-xl flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+          <div>
+            <h2 className="text-2xl font-black text-on-surface mb-xs">בחר משמרות בהן לא תוכל לעבוד</h2>
+            <p className="text-on-surface-variant opacity-70">סמן את המשמרות שאינך יכול לעבוד בהן לשבוע הקרוב.</p>
+          </div>
+          <div className="flex gap-sm w-full md:w-auto">
+            <button
+              onClick={handleClear}
+              disabled={isLocked}
+              className="flex-1 md:flex-none bg-surface-container-high hover:bg-surface-variant text-on-surface font-bold py-sm px-md rounded-lg transition-colors h-12 disabled:opacity-50"
+            >
+              ניקוי בחירות
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={isLocked || saveStatus === 'saving'}
+              className="flex-1 md:flex-none bg-gradient-to-r from-[#101B79] to-[#056AE5] hover:opacity-90 text-white font-bold py-sm px-lg rounded-lg transition-all shadow-bezeq-float h-12 flex items-center justify-center gap-xs disabled:opacity-50"
+            >
+              <MaterialIcon name="send" />
+              {saveStatus === 'saving' ? 'שולח...' : 'שלח אילוצים'}
+            </button>
+          </div>
         </div>
 
         {loadError && (
@@ -218,82 +169,66 @@ export default function ConstraintPage() {
           </div>
         )}
 
-        <p className="mb-4 text-sm text-gray-500">
-          סמן את המשמרות שאינך יכול/ה לעבוד בהן. השינויים נשמרים אוטומטית.
-        </p>
+        {saveStatus === 'saved' && (
+          <div className="mb-4 rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-green-700 text-sm flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+            <MaterialIcon name="check_circle" className="text-green-600" />
+            האילוצים נשמרו בהצלחה
+          </div>
+        )}
 
-        <div className="bg-white rounded-xl shadow-sm overflow-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="bg-gray-100 text-gray-600">
-                <th className="py-3 px-4 text-right font-medium border-b border-gray-200 min-w-[120px]">
-                  משמרת
-                </th>
-                {weekDates.map((date, i) => (
-                  <th
-                    key={i}
-                    className="py-3 px-3 text-center font-medium border-b border-gray-200 min-w-[72px]"
-                  >
-                    <span className="block">{DAY_LABELS[i]}</span>
-                    <span className="block text-xs text-gray-400 font-normal">
-                      {new Intl.DateTimeFormat('he-IL', {
-                        day: 'numeric',
-                        month: 'numeric',
-                        timeZone: 'Asia/Jerusalem',
-                      }).format(date)}
-                    </span>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {definitions.map((def, rowIdx) => (
-                <tr
-                  key={def._id}
-                  className={rowIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
-                >
-                  <td className="py-3 px-4 font-medium text-gray-700 border-b border-gray-100">
-                    <span
-                      className="inline-block w-2.5 h-2.5 rounded-full ml-2"
-                      style={{ backgroundColor: def.color }}
-                    />
-                    {def.name}
-                    <span className="block text-xs text-gray-400 font-normal">
-                      {def.startTime}–{def.endTime}
-                    </span>
-                  </td>
-                  {weekDates.map((date, colIdx) => {
-                    const dateKey = toDateKey(date);
+        {saveStatus === 'error' && (
+          <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-red-700 text-sm">
+            שגיאה בשמירת האילוצים. נסה שוב.
+          </div>
+        )}
+
+        {/* Vertical Day Cards Layout */}
+        <div className="flex flex-col gap-md">
+          {weekDates.map((date, dayIdx) => {
+            const dateKey = toDateKey(date);
+            return (
+              <div key={dateKey} className="bg-surface-container-lowest rounded-xl shadow-bezeq-card border border-outline-variant p-md flex flex-col md:flex-row items-center gap-lg">
+                <div className="w-full md:w-32 shrink-0 border-b md:border-b-0 md:border-l border-outline-variant pb-md md:pb-0 md:pl-md">
+                  <h3 className="text-lg font-black text-primary">{DAY_LABELS[dayIdx]}</h3>
+                  <p className="text-xs text-on-surface-variant font-bold opacity-60">
+                    {new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'long' }).format(date)}
+                  </p>
+                </div>
+                <div className="flex-1 w-full flex flex-col sm:flex-row gap-md">
+                  {definitions.map((def) => {
                     const cellKey = `${def._id}:${dateKey}`;
+                    const isChecked = !!checked[cellKey];
                     return (
-                      <td
-                        key={colIdx}
-                        className="py-3 px-3 text-center border-b border-gray-100"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={!!checked[cellKey]}
-                          onChange={() => handleToggle(def._id, dateKey)}
-                          disabled={isLocked}
-                          className="w-4 h-4 accent-red-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
-                          aria-label={`${def.name} — יום ${DAY_LABELS[colIdx]}`}
-                        />
-                      </td>
+                      <ShiftCardConstraint
+                        key={def._id}
+                        shiftName={def.name}
+                        startTime={def.startTime}
+                        endTime={def.endTime}
+                        isChecked={isChecked}
+                        isLocked={isLocked}
+                        onToggle={() => handleToggle(def._id, dateKey)}
+                      />
                     );
                   })}
-                </tr>
-              ))}
-              {definitions.length === 0 && !loadError && (
-                <tr>
-                  <td colSpan={8} className="py-8 text-center text-gray-400 text-sm">
-                    טוען משמרות...
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Remarks Section */}
+        <div className="mt-xl bg-surface-container-lowest rounded-xl shadow-bezeq-card border border-outline-variant p-lg">
+          <h3 className="text-lg font-black text-on-surface mb-md">הערות לבקשה</h3>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            disabled={isLocked}
+            className="w-full bg-surface-container-low border border-outline-variant rounded-xl p-md text-on-surface focus:ring-4 focus:ring-[#056AE5]/20 focus:border-[#056AE5] transition-all resize-none h-24 disabled:opacity-50"
+            placeholder="הוסף הערות מיוחדות כאן (למשל: אירוע משפחתי, לימודים...)"
+          />
         </div>
       </div>
-    </main>
+      {showSuccessModal && <SuccessOverlay onClose={() => setShowSuccessModal(false)} />}
+    </MainLayout>
   );
 }

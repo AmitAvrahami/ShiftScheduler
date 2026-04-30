@@ -131,8 +131,29 @@ export const constraintApi = {
     constraint: Constraint | null;
     deadline: string;
     isLocked: boolean;
+    isExplicitlyLocked?: boolean;
   }> {
     return request(`/constraints/${weekId}`);
+  },
+
+  getAllConstraints(weekId: string): Promise<{
+    success: boolean;
+    constraints: Constraint[];
+    deadline: string;
+    isLocked: boolean;
+    isExplicitlyLocked: boolean;
+  }> {
+    return request(`/constraints/${weekId}/all`);
+  },
+
+  toggleWeekLock(
+    weekId: string,
+    isLocked: boolean
+  ): Promise<{ success: boolean; isLocked: boolean }> {
+    return request(`/constraints/${weekId}/toggle-lock`, {
+      method: 'POST',
+      body: JSON.stringify({ isLocked }),
+    });
   },
 
   getForUser(
@@ -179,6 +200,24 @@ export const scheduleApi = {
     return request('/schedules', {
       method: 'POST',
       body: JSON.stringify({ weekId, generatedBy: 'auto' }),
+    });
+  },
+
+  update(id: string, status: 'published' | 'archived'): Promise<{ success: boolean; schedule: Schedule }> {
+    return request(`/schedules/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  },
+
+  deleteSchedule(id: string): Promise<{ success: boolean }> {
+    return request(`/schedules/${id}`, { method: 'DELETE' });
+  },
+
+  clone(id: string, targetWeekId: string): Promise<{ success: boolean; schedule: Schedule }> {
+    return request(`/schedules/${id}/clone`, {
+      method: 'POST',
+      body: JSON.stringify({ targetWeekId }),
     });
   },
 };
