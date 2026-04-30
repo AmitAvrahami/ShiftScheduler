@@ -235,6 +235,88 @@ export async function deleteSchedule(
   }
 }
 
+const cloneSchema = z.object({
+  targetWeekId: z.string().regex(WEEK_ID_RE, 'Invalid targetWeekId format — expected YYYY-WNN'),
+});
+
+export async function cloneSchedule(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const parsed = cloneSchema.safeParse(req.body);
+    if (!parsed.success) return next(new AppError(parsed.error.errors[0].message, 400));
+
+    const { targetWeekId } = parsed.data;
+    if (!validateWeekId(targetWeekId, next)) return;
+
+    const source = await WeeklySchedule.findById(req.params.id);
+    if (!source) return next(new AppError('Schedule not found', 404));
+
+    const existingTarget = await WeeklySchedule.findOne({ weekId: targetWeekId });
+    if (existingTarget && existingTarget.status !== 'draft') {
+      return next(new AppError(`A ${existingTarget.status} schedule already exists for week ${targetWeekId}`, 409));
+    }
+    if (existingTarget && existingTarget.status === 'draft') {
+      await cascadeDeleteSchedule(existingTarget._id as mongoose.Types.ObjectId);
+    }
+
+    const sourceDates = getWeekDates(source.weekId);
+    const targetDates = getWeekDates(targetWeekId);
+    const offsetMs = targetDates[0].getTime() - sourceDates[0].getTime();
+
+    const targetSchedule = await WeeklySchedule.create({
+      weekId: targetWeekId,
+      startDate: targetDates[0],
+      endDate: targetDates[6],
+      status: 'draft',
+      generatedBy: 'manual',
+    });
+
+    const sourceShifts = await Shift.find({ scheduleId: source._id }).lean();
+    const shiftIdMap = new Map<string, mongoose.Types.ObjectId>();
+
+    for (const shift of sourceShifts) {
+      const newDate = new Date(new Date(shift.date).getTime() + offsetMs);
+      const newShift = await Shift.create({
+        scheduleId: targetSchedule._id,
+        definitionId: shift.definitionId,
+        date: newDate,
+        requiredCount: shift.requiredCount,
+        status: shift.status,
+      });
+      shiftIdMap.set(String(shift._id), newShift._id as mongoose.Types.ObjectId);
+    }
+
+    const sourceAssignments = await Assignment.find({ scheduleId: source._id }).lean();
+    if (sourceAssignments.length > 0) {
+      await Assignment.insertMany(
+        sourceAssignments.map((a) => ({
+          shiftId: shiftIdMap.get(String(a.shiftId)),
+          scheduleId: targetSchedule._id,
+          userId: a.userId,
+          assignedBy: req.user!._id,
+          status: a.status,
+        }))
+      );
+    }
+
+    await AuditLog.create({
+      performedBy: req.user!._id,
+      action: 'schedule_cloned',
+      refModel: 'WeeklySchedule',
+      refId: targetSchedule._id,
+      after: { sourceWeekId: source.weekId, targetWeekId },
+      ip: req.ip,
+    });
+
+    res.status(201).json({ success: true, schedule: targetSchedule });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function generateSchedule(
   req: Request,
   res: Response,
