@@ -53,6 +53,14 @@ export interface GenerateResult {
   violations: Array<{ message: string }>;
 }
 
+export class ApiError extends Error {
+  code?: string;
+  constructor(message: string, code?: string) {
+    super(message);
+    this.code = code;
+  }
+}
+
 // ─── Base request helper ──────────────────────────────────────────────────────
 
 const BASE = '/api/v1';
@@ -67,7 +75,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.message ?? 'Request failed');
+  if (!res.ok) throw new ApiError(data.message ?? 'Request failed', data.code);
   return data as T;
 }
 
