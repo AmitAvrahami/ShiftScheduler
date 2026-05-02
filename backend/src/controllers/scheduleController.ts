@@ -66,6 +66,11 @@ export async function createSchedule(
 
     const existing = await WeeklySchedule.findOne({ weekId });
     if (existing) {
+      const { role } = req.user!;
+      if (existing.status === 'draft' && !['admin', 'manager'].includes(role)) {
+        return next(new AppError('Forbidden — draft access restricted to admins and managers', 403));
+      }
+
       if (!['open', 'draft'].includes(existing.status)) {
         return next(new AppError(`Schedule for week ${weekId} already exists`, 409));
       }
@@ -114,7 +119,14 @@ export async function getScheduleById(
     const schedule = await WeeklySchedule.findById(req.params.id);
     if (!schedule) return next(new AppError('Schedule not found', 404));
 
-    const isManagerOrAdmin = req.user!.role === 'manager' || req.user!.role === 'admin';
+    const { role } = req.user!;
+
+    // BOLA check: Only admins and managers can see drafts
+    if (schedule.status === 'draft' && !['admin', 'manager'].includes(role)) {
+      return next(new AppError('Forbidden — draft access restricted to admins and managers', 403));
+    }
+
+    const isManagerOrAdmin = role === 'manager' || role === 'admin';
     if (!isManagerOrAdmin && schedule.status !== 'published') {
       return next(new AppError('Schedule not found', 404));
     }
@@ -136,6 +148,11 @@ export async function updateSchedule(
 
     const schedule = await WeeklySchedule.findById(req.params.id);
     if (!schedule) return next(new AppError('Schedule not found', 404));
+
+    const { role } = req.user!;
+    if (schedule.status === 'draft' && !['admin', 'manager'].includes(role)) {
+      return next(new AppError('Forbidden — draft access restricted to admins and managers', 403));
+    }
 
     const before = schedule.toObject();
 
@@ -217,6 +234,11 @@ export async function deleteSchedule(
     const schedule = await WeeklySchedule.findById(req.params.id);
     if (!schedule) return next(new AppError('Schedule not found', 404));
 
+    const { role } = req.user!;
+    if (schedule.status === 'draft' && !['admin', 'manager'].includes(role)) {
+      return next(new AppError('Forbidden — draft access restricted to admins and managers', 403));
+    }
+
     if (!['open', 'draft'].includes(schedule.status)) {
       return next(new AppError('Only open or draft schedules can be deleted', 422));
     }
@@ -256,6 +278,11 @@ export async function cloneSchedule(
 
     const source = await WeeklySchedule.findById(req.params.id);
     if (!source) return next(new AppError('Schedule not found', 404));
+
+    const { role } = req.user!;
+    if (source.status === 'draft' && !['admin', 'manager'].includes(role)) {
+      return next(new AppError('Forbidden — draft access restricted to admins and managers', 403));
+    }
 
     const existingTarget = await WeeklySchedule.findOne({ weekId: targetWeekId });
     if (existingTarget && !['open', 'draft'].includes(existingTarget.status)) {
@@ -351,8 +378,15 @@ export async function generateSchedule(
         after: { weekId, generatedBy: 'auto', status: 'open' },
         ip,
       });
-    } else if (!['open', 'locked', 'draft'].includes(existing.status)) {
-      return next(new AppError(`Cannot re-generate a ${existing.status} schedule`, 422));
+    } else {
+      const { role } = req.user!;
+      if (existing.status === 'draft' && !['admin', 'manager'].includes(role)) {
+        return next(new AppError('Forbidden — draft access restricted to admins and managers', 403));
+      }
+
+      if (!['open', 'locked', 'draft'].includes(existing.status)) {
+        return next(new AppError(`Cannot re-generate a ${existing.status} schedule`, 422));
+      }
     }
 
     // Transition to 'generating' before invoking the solver

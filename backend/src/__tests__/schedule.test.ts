@@ -191,11 +191,11 @@ describe('GET /api/v1/schedules/:id', () => {
     expect(res.status).toBe(401);
   });
 
-  it('employee gets 404 for draft schedule', async () => {
+  it('employee gets 403 for draft schedule', async () => {
     const { token } = await seedEmployee();
     const schedule = await seedDraftSchedule();
     const res = await request(app).get(`/api/v1/schedules/${schedule._id}`).set('Authorization', `Bearer ${token}`);
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(403);
   });
 
   it('employee can access published schedule', async () => {
