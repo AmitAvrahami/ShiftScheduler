@@ -6,6 +6,7 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
     res.status(err.statusCode).json({
       success: false,
       message: err.message,
+      code: err.code,
     });
     return;
   }
