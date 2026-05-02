@@ -7,6 +7,7 @@ import UsersPage from './pages/UsersPage';
 import ConstraintPage from './pages/ConstraintPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminConstraintsPage from './pages/AdminConstraintsPage';
+import AdminShiftDefinitionsPage from './pages/AdminShiftDefinitionsPage';
 import SchedulesPage from './pages/SchedulesPage';
 
 function App() {
@@ -46,6 +47,14 @@ function App() {
             element={
               <ProtectedRoute requiredRole="manager">
                 <AdminConstraintsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/shift-definitions"
+            element={
+              <ProtectedRoute requiredRole="manager">
+                <AdminShiftDefinitionsPage />
               </ProtectedRoute>
             }
           />
