@@ -2,17 +2,11 @@ import { useEffect, useState, useRef } from 'react';
 import MainLayout from '../components/layout/MainLayout';
 import MaterialIcon from '../components/MaterialIcon';
 import {
-  userApi,
-  constraintApi,
+  adminApi,
   scheduleApi,
-  shiftApi,
-  assignmentApi,
-  auditLogApi,
   notificationApi,
-  shiftDefinitionApi,
 } from '../lib/api';
 import type {
-  Schedule,
   Shift,
   Assignment,
   AuditLogEntry,
@@ -35,20 +29,6 @@ function getCurrentWeekId(): string {
   return `${thursday.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`;
 }
 
-function getNextWeekId(weekId: string): string {
-  const [yearStr, weekStr] = weekId.split('-W');
-  const year = parseInt(yearStr, 10);
-  const week = parseInt(weekStr, 10);
-  const jan4 = new Date(Date.UTC(year, 0, 4));
-  const jan4Day = jan4.getUTCDay() || 7;
-  const week1Monday = jan4.getTime() - (jan4Day - 1) * 86_400_000;
-  const monday = new Date(week1Monday + (week - 1) * 7 * 86_400_000);
-  const nextMonday = new Date(monday.getTime() + 7 * 86_400_000);
-  const thu = new Date(nextMonday.getTime() + 3 * 86_400_000);
-  const jan1 = new Date(Date.UTC(thu.getUTCFullYear(), 0, 1));
-  const wk = Math.ceil(((thu.getTime() - jan1.getTime()) / 86_400_000 + 1) / 7);
-  return `${thu.getUTCFullYear()}-W${String(wk).padStart(2, '0')}`;
-}
 
 function toDateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -215,36 +195,21 @@ function ShiftCard({
 
 function ShiftOverview({
   users,
-  weekId,
   definitions,
+  shifts,
+  assignments,
 }: {
   users: User[];
-  weekId: string;
   definitions: ShiftDefinition[];
+  shifts: Shift[];
+  assignments: Assignment[];
 }) {
   const [now, setNow] = useState(new Date());
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [shifts, setShifts] = useState<Shift[]>([]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(t);
   }, []);
-
-  useEffect(() => {
-    if (!weekId) return;
-    scheduleApi.getAll().then((res) => {
-      const schedule = res.schedules.find((s) => s.weekId === weekId);
-      if (!schedule) return;
-      Promise.all([
-        shiftApi.getBySchedule(schedule._id),
-        assignmentApi.getBySchedule(schedule._id),
-      ]).then(([shiftsRes, assignRes]) => {
-        setShifts(shiftsRes.shifts);
-        setAssignments(assignRes.assignments);
-      }).catch(console.error);
-    }).catch(console.error);
-  }, [weekId]);
 
   const sortedDefs = [...definitions].sort((a, b) => a.orderNumber - b.orderNumber);
   const employees = users.filter(u => u.isActive);
@@ -752,15 +717,8 @@ function QuickActions({
 
 // ─── Audit log widget ─────────────────────────────────────────────────────────
 
-function AuditLogWidget() {
-  const [logs, setLogs] = useState<AuditLogEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    auditLogApi.getLogs(8).then(res => {
-      setLogs(res.logs ?? []);
-    }).catch(console.error).finally(() => setLoading(false));
-  }, []);
+function AuditLogWidget({ logs }: { logs: AuditLogEntry[] | null }) {
+  const loading = logs === null;
 
   return (
     <section className="flex flex-col h-full">
@@ -914,64 +872,32 @@ export default function AdminDashboardPage() {
   const [scheduleStats, setScheduleStats]           = useState<ScheduleStats | null>(null);
   const [generateResult, setGenerateResult]         = useState<GenerateResult | null>(null);
   const [definitions, setDefinitions]               = useState<ShiftDefinition[]>([]);
+  const [currentShifts, setCurrentShifts]           = useState<Shift[]>([]);
+  const [currentAssignments, setCurrentAssignments] = useState<Assignment[]>([]);
+  const [auditLogs, setAuditLogs]                   = useState<AuditLogEntry[] | null>(null);
 
-  const weekId     = getCurrentWeekId();
-  const nextWeekId = getNextWeekId(weekId);
-  const employees  = users.filter(u => u.isActive);
+  const weekId    = getCurrentWeekId();
+  const employees = users.filter(u => u.isActive);
 
-  // Load users
+  // Single BFF call replaces 4 separate effects + N+1 constraint queries
   useEffect(() => {
-    userApi.getUsers().then(res => {
-      setUsers(res.users);
-    }).catch(console.error);
-  }, []);
+    adminApi.getDashboard(weekId).then(res => {
+      const { data } = res;
+      setUsers(data.users.all as unknown as User[]);
+      setDefinitions(data.shiftDefinitions as unknown as ShiftDefinition[]);
+      setCurrentShifts(data.currentWeek.shifts as unknown as Shift[]);
+      setCurrentAssignments(data.currentWeek.assignments as unknown as Assignment[]);
+      setScheduleStats(data.currentWeek.stats);
+      setAuditLogs(data.recentAuditLogs);
 
-  // Load shift definitions
-  useEffect(() => {
-    shiftDefinitionApi.getActive().then(res => {
-      setDefinitions(res.definitions);
-    }).catch(console.error);
-  }, []);
-
-  // Load schedule stats (sidebar)
-  useEffect(() => {
-    scheduleApi.getAll().then(async (res) => {
-      const schedule = res.schedules.find((s: Schedule) => s.weekId === weekId);
-      if (!schedule) {
-        setScheduleStats({ total: 0, filled: 0, partial: 0, empty: 0, scheduleStatus: null });
-        return;
-      }
-      const shiftsRes = await shiftApi.getBySchedule(schedule._id);
-      const shifts = shiftsRes.shifts;
-      setScheduleStats({
-        total:   shifts.length,
-        filled:  shifts.filter((s: Shift) => s.status === 'filled').length,
-        partial: shifts.filter((s: Shift) => s.status === 'partial').length,
-        empty:   shifts.filter((s: Shift) => s.status === 'empty').length,
-        scheduleStatus: schedule.status,
-      });
+      const missingIds = new Set(data.nextWeek.missingConstraintUserIds);
+      setMissingUsers(
+        (data.users.all as unknown as User[]).filter(
+          u => u.role === 'employee' && u.isActive && missingIds.has(u._id)
+        )
+      );
     }).catch(console.error);
   }, [weekId]);
-
-  // Load missing constraints for next week
-  useEffect(() => {
-    if (users.length === 0) return;
-    const employeeUsers = users.filter(u => u.role === 'employee' && u.isActive);
-    let active = true;
-
-    Promise.all(
-      employeeUsers.map(u =>
-        constraintApi.getForUser(nextWeekId, u._id)
-          .then(res => ({ user: u, hasMissing: res.constraint === null }))
-          .catch(() => ({ user: u, hasMissing: true }))
-      )
-    ).then(results => {
-      if (!active) return;
-      setMissingUsers(results.filter(r => r.hasMissing).map(r => r.user));
-    });
-
-    return () => { active = false; };
-  }, [users, nextWeekId]);
 
   return (
     <MainLayout
@@ -989,7 +915,12 @@ export default function AdminDashboardPage() {
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* Main content column */}
           <div className="xl:col-span-2 space-y-6">
-            <ShiftOverview users={employees} weekId={weekId} definitions={definitions} />
+            <ShiftOverview
+              users={employees}
+              definitions={definitions}
+              shifts={currentShifts}
+              assignments={currentAssignments}
+            />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <BroadcastCenter recipientCount={employees.length} onToast={setToast} />
                 <MissingConstraints missingUsers={missingUsers} />
@@ -999,7 +930,7 @@ export default function AdminDashboardPage() {
           {/* Side content column */}
           <div className="xl:col-span-1 space-y-6">
             <SidebarStats weekId={weekId} totalUsers={employees.length} stats={scheduleStats} />
-            <AuditLogWidget />
+            <AuditLogWidget logs={auditLogs} />
           </div>
         </div>
       </div>

@@ -7,6 +7,7 @@ import app from '../app';
 import User from '../models/User';
 import WeeklySchedule from '../models/WeeklySchedule';
 import AuditLog from '../models/AuditLog';
+import { getCurrentWeekId } from '../utils/weekUtils';
 
 let mongoServer: MongoMemoryServer;
 
@@ -96,37 +97,56 @@ describe('GET /api/v1/admin/dashboard — access control', () => {
 });
 
 describe('GET /api/v1/admin/dashboard — response shape', () => {
-  it('returns correct top-level keys', async () => {
+  it('returns all BFF top-level keys', async () => {
     const { token } = await seedAdmin();
     const res = await request(app)
       .get('/api/v1/admin/dashboard')
       .set('Authorization', `Bearer ${token}`);
     expect(res.body.data).toHaveProperty('users');
-    expect(res.body.data).toHaveProperty('schedules');
+    expect(res.body.data).toHaveProperty('shiftDefinitions');
+    expect(res.body.data).toHaveProperty('currentWeek');
+    expect(res.body.data).toHaveProperty('nextWeek');
     expect(res.body.data).toHaveProperty('recentAuditLogs');
+    expect(res.body.data).toHaveProperty('meta');
   });
 
-  it('users stat has required fields', async () => {
+  it('users has all[] and stats sub-keys', async () => {
     const { token } = await seedAdmin();
     const res = await request(app)
       .get('/api/v1/admin/dashboard')
       .set('Authorization', `Bearer ${token}`);
     const { users } = res.body.data;
-    expect(typeof users.total).toBe('number');
-    expect(typeof users.active).toBe('number');
-    expect(users.byRole).toHaveProperty('employee');
-    expect(users.byRole).toHaveProperty('manager');
-    expect(users.byRole).toHaveProperty('admin');
+    expect(Array.isArray(users.all)).toBe(true);
+    expect(typeof users.stats.total).toBe('number');
+    expect(typeof users.stats.active).toBe('number');
+    expect(users.stats.byRole).toHaveProperty('employee');
+    expect(users.stats.byRole).toHaveProperty('manager');
+    expect(users.stats.byRole).toHaveProperty('admin');
   });
 
-  it('schedules stat has required fields', async () => {
+  it('currentWeek has required structure', async () => {
     const { token } = await seedAdmin();
     const res = await request(app)
       .get('/api/v1/admin/dashboard')
       .set('Authorization', `Bearer ${token}`);
-    const { schedules } = res.body.data;
-    expect(typeof schedules.total).toBe('number');
-    expect(typeof schedules.byStatus).toBe('object');
+    const { currentWeek } = res.body.data;
+    expect(typeof currentWeek.weekId).toBe('string');
+    expect(Array.isArray(currentWeek.shifts)).toBe(true);
+    expect(Array.isArray(currentWeek.assignments)).toBe(true);
+    expect(typeof currentWeek.stats.total).toBe('number');
+    expect(typeof currentWeek.stats.filled).toBe('number');
+    expect(typeof currentWeek.stats.partial).toBe('number');
+    expect(typeof currentWeek.stats.empty).toBe('number');
+  });
+
+  it('nextWeek has weekId and missingConstraintUserIds', async () => {
+    const { token } = await seedAdmin();
+    const res = await request(app)
+      .get('/api/v1/admin/dashboard')
+      .set('Authorization', `Bearer ${token}`);
+    const { nextWeek } = res.body.data;
+    expect(typeof nextWeek.weekId).toBe('string');
+    expect(Array.isArray(nextWeek.missingConstraintUserIds)).toBe(true);
   });
 
   it('recentAuditLogs is an array', async () => {
@@ -135,6 +155,14 @@ describe('GET /api/v1/admin/dashboard — response shape', () => {
       .get('/api/v1/admin/dashboard')
       .set('Authorization', `Bearer ${token}`);
     expect(Array.isArray(res.body.data.recentAuditLogs)).toBe(true);
+  });
+
+  it('meta.queryTimeMs is a number', async () => {
+    const { token } = await seedAdmin();
+    const res = await request(app)
+      .get('/api/v1/admin/dashboard')
+      .set('Authorization', `Bearer ${token}`);
+    expect(typeof res.body.data.meta.queryTimeMs).toBe('number');
   });
 });
 
@@ -149,13 +177,15 @@ describe('GET /api/v1/admin/dashboard — data accuracy', () => {
       .set('Authorization', `Bearer ${token}`);
 
     const { users } = res.body.data;
-    expect(users.total).toBe(3);
-    expect(users.active).toBe(3);
-    expect(users.byRole.admin).toBe(1);
-    expect(users.byRole.manager).toBe(1);
-    expect(users.byRole.employee).toBe(1);
+    expect(users.stats.total).toBe(3);
+    expect(users.stats.active).toBe(3);
+    expect(users.stats.byRole.admin).toBe(1);
+    expect(users.stats.byRole.manager).toBe(1);
+    expect(users.stats.byRole.employee).toBe(1);
+    expect(users.all.length).toBe(3);
+    expect(users.all.every((u: Record<string, unknown>) => !('password' in u))).toBe(true);
 
-    void admin; // referenced for clarity
+    void admin;
   });
 
   it('inactive users are excluded from active count', async () => {
@@ -173,31 +203,59 @@ describe('GET /api/v1/admin/dashboard — data accuracy', () => {
       .set('Authorization', `Bearer ${token}`);
 
     const { users } = res.body.data;
-    expect(users.total).toBe(2);
-    expect(users.active).toBe(1);
+    expect(users.stats.total).toBe(2);
+    expect(users.stats.active).toBe(1);
   });
 
-  it('counts schedules by status', async () => {
-    const { token, admin } = await seedAdmin();
-    await WeeklySchedule.create([
-      { weekId: '2026-W01', startDate: new Date('2026-01-04'), endDate: new Date('2026-01-10'), status: 'open', generatedBy: 'manual', createdBy: admin._id },
-      { weekId: '2026-W02', startDate: new Date('2026-01-11'), endDate: new Date('2026-01-17'), status: 'published', generatedBy: 'auto', createdBy: admin._id },
-      { weekId: '2026-W03', startDate: new Date('2026-01-18'), endDate: new Date('2026-01-24'), status: 'published', generatedBy: 'auto', createdBy: admin._id },
-    ]);
+  it('active employees with no constraint appear in missingConstraintUserIds', async () => {
+    const { token } = await seedAdmin();
+    await seedEmployee();
 
     const res = await request(app)
       .get('/api/v1/admin/dashboard')
       .set('Authorization', `Bearer ${token}`);
 
-    const { schedules } = res.body.data;
-    expect(schedules.total).toBe(3);
-    expect(schedules.byStatus.open).toBe(1);
-    expect(schedules.byStatus.published).toBe(2);
+    expect(res.body.data.nextWeek.missingConstraintUserIds.length).toBe(1);
   });
 
-  it('recentAuditLogs returns at most 10 entries', async () => {
+  it('currentWeek returns null schedule and empty arrays when none exists', async () => {
+    const { token } = await seedAdmin();
+    const res = await request(app)
+      .get('/api/v1/admin/dashboard')
+      .set('Authorization', `Bearer ${token}`);
+
+    const { currentWeek } = res.body.data;
+    expect(currentWeek.schedule).toBeNull();
+    expect(currentWeek.shifts).toHaveLength(0);
+    expect(currentWeek.assignments).toHaveLength(0);
+    expect(currentWeek.stats.total).toBe(0);
+    expect(currentWeek.stats.scheduleStatus).toBeNull();
+  });
+
+  it('currentWeek reflects schedule seeded for the current weekId', async () => {
     const { token, admin } = await seedAdmin();
-    const logs = Array.from({ length: 15 }, (_, i) => ({
+    const weekId = getCurrentWeekId();
+
+    await WeeklySchedule.create({
+      weekId,
+      startDate: new Date(),
+      endDate: new Date(),
+      status: 'draft',
+      generatedBy: 'auto',
+      createdBy: admin._id,
+    });
+
+    const res = await request(app)
+      .get('/api/v1/admin/dashboard')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.body.data.currentWeek.schedule).not.toBeNull();
+    expect(res.body.data.currentWeek.stats.scheduleStatus).toBe('draft');
+  });
+
+  it('recentAuditLogs returns at most 8 entries', async () => {
+    const { token, admin } = await seedAdmin();
+    const logs = Array.from({ length: 12 }, (_, i) => ({
       performedBy: admin._id,
       action: `action_${i}`,
     }));
@@ -207,10 +265,10 @@ describe('GET /api/v1/admin/dashboard — data accuracy', () => {
       .get('/api/v1/admin/dashboard')
       .set('Authorization', `Bearer ${token}`);
 
-    expect(res.body.data.recentAuditLogs.length).toBeLessThanOrEqual(10);
+    expect(res.body.data.recentAuditLogs.length).toBeLessThanOrEqual(8);
   });
 
-  it('recentAuditLogs entries have action, performedBy, createdAt', async () => {
+  it('recentAuditLogs entries have action, performedBy.name, createdAt', async () => {
     const { token, admin } = await seedAdmin();
     await AuditLog.create({ performedBy: admin._id, action: 'user_created' });
 
@@ -220,7 +278,7 @@ describe('GET /api/v1/admin/dashboard — data accuracy', () => {
 
     const [log] = res.body.data.recentAuditLogs;
     expect(log).toHaveProperty('action', 'user_created');
-    expect(log).toHaveProperty('performedBy');
+    expect(log.performedBy).toHaveProperty('name', 'Admin');
     expect(log).toHaveProperty('createdAt');
   });
 });

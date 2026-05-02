@@ -248,6 +248,36 @@ export const auditLogApi = {
   },
 };
 
+// ─── Admin BFF ───────────────────────────────────────────────────────────────
+
+export interface AdminDashboardData {
+  users: {
+    all: User[];
+    stats: { total: number; active: number; byRole: { employee: number; manager: number; admin: number } };
+  };
+  shiftDefinitions: ShiftDefinition[];
+  currentWeek: {
+    weekId: string;
+    schedule: Schedule | null;
+    shifts: Shift[];
+    assignments: Assignment[];
+    stats: { total: number; filled: number; partial: number; empty: number; scheduleStatus: string | null };
+  };
+  nextWeek: {
+    weekId: string;
+    missingConstraintUserIds: string[];
+  };
+  recentAuditLogs: AuditLogEntry[];
+  meta: { queryTimeMs: number };
+}
+
+export const adminApi = {
+  getDashboard(weekId?: string): Promise<{ success: boolean; data: AdminDashboardData }> {
+    const qs = weekId ? `?weekId=${encodeURIComponent(weekId)}` : '';
+    return request(`/admin/dashboard${qs}`);
+  },
+};
+
 // ─── Notifications ────────────────────────────────────────────────────────────
 
 export const notificationApi = {
